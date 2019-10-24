@@ -84,11 +84,18 @@ def send_message(chat, message_func, force):
     # Check if user wants to supress notifications on workdays
     if get_supress_status(chat) == "True" and not force:
         # Supress if Monday - Friday and not between 18 and 23
-        log("It is day " + str(checktime("day")) + " and hour " + str(checktime("hour")))
         if checktime("day") < 4 and (checktime("hour") < 18 or checktime("hour") > 22):
             message = "Supressed message for {} due to Day or Time".format(get_username(chat))
             log(message)
             return "suppressed"
+        else:
+            try:
+                message = "Send message to {}: {}".format(get_username(chat), message_func)
+                log(message)
+                requests.get("https://api.telegram.org/bot" + str(tgbot_token) + "/sendMessage?chat_id=" + str(chat) + "&text=" + str(message_func))
+                return message_func
+            except:
+                return False
     else:
         try:
             message = "Send message to {}: {}".format(get_username(chat), message_func)
