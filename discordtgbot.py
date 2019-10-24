@@ -121,6 +121,11 @@ def get_online_status(channel):
         message = "Nobody is online, you are on your own! Are you lonely?"
         return message
 
+def is_user_in_channel(telegram_id_func, channel):
+    if get_username(telegram_id_func) in get_online_status(channel):
+        return True
+    else:
+        return False
 
 ################
 # Misc methods #
@@ -198,7 +203,11 @@ async def telegram_bridge():
                         # Only announce if the list is altered from the last time posted to the chat
                         if len(last_announce) != len(message):
                             for chat in get_enabled_users():
-                                last_announce = send_message(chat, message, False)
+                                if is_user_in_channel(chat, channel_id) == False:
+                                    send_message(chat, message, False)
+                                    last_announce = message
+                                else:
+                                    log("User is online and does not need to be notified!")
 
                 # Check if the last one left the channel
                 elif not member_list:
@@ -207,7 +216,11 @@ async def telegram_bridge():
                     if not bot_restarted:
                         # Send message to the chat and remember
                         for chat in get_enabled_users():
-                            last_announce = send_message(chat, message, False)
+                            if get_username(chat) not in last_announce:
+                                send_message(chat, message, False)
+                                last_announce = message
+                            else:
+                                log("The User was online right now and does not need to be notified!")
 
             # Update the variables for next loop
             members_old = members
