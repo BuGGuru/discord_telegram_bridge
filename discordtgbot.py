@@ -45,7 +45,7 @@ def get_enabled_users():
     for row in records:
         chat_list.append(row[1])
         chat_list_user_names.append(row[2])
-    print("Getting messaged: " + str(chat_list_user_names))
+    log("Getting messaged: " + str(chat_list_user_names))
     return chat_list
 
 def get_username(telegram_id_func):
@@ -57,6 +57,14 @@ def get_username(telegram_id_func):
     except:
         return telegram_id_func
 
+def get_supress_status(telegram_id_func):
+    try:
+        sqlquery = "select supress from users where telegram_id = {}".format(telegram_id_func)
+        cursor.execute(sqlquery)
+        records = cursor.fetchone()
+        return records[0]
+    except:
+        return True
 
 ####################
 # Telegram methods #
@@ -73,12 +81,14 @@ def get_messages(offset_func):
 
 # Send message to a chat
 def send_message(chat, message_func, force):
-    # Supress if Monday - Friday and not between 18 and 23
-    print("it is day " + str(checktime("day")) + " and hour " + str(checktime("hour")))
-    if checktime("day") < 4 and (checktime("hour") < 18 or checktime("hour") > 22) and not force:
-        message = "Supressed message for {} due to Day or Time".format(get_username(chat))
-        log(message)
-        return "suppressed"
+    # Check if user wants to supress notifications on workdays
+    if get_supress_status(chat) == "True" and not force:
+        # Supress if Monday - Friday and not between 18 and 23
+        log("It is day " + str(checktime("day")) + " and hour " + str(checktime("hour")))
+        if checktime("day") < 4 and (checktime("hour") < 18 or checktime("hour") > 22):
+            message = "Supressed message for {} due to Day or Time".format(get_username(chat))
+            log(message)
+            return "suppressed"
     else:
         try:
             message = "Send message to {}: {}".format(get_username(chat), message_func)
@@ -102,7 +112,7 @@ def get_online_status(channel):
         message = "Online right now: {}".format(member_list)
         return message
     else:
-        message = "Nobody is online, you are on your own! Are you are lonely?"
+        message = "Nobody is online, you are on your own! Are you lonely?"
         return message
 
 
@@ -170,7 +180,7 @@ async def telegram_bridge():
                     member_list.append(member.name)
 
                 # Verbose for cli
-                print("Now online: " + str(member_list))
+                log("Now online: " + str(member_list))
 
                 # Check if the new member list is longer (char wise due to laziness)
                 # We only want to announce ppl that come into the channel
@@ -225,11 +235,12 @@ async def telegram_bridge():
                         try:
                             bot_messages_text_single = str(
                                 bot_messages_json["result"][message_counter]["message"]["text"])
+                            log(bot_messages_json)
                             log("New Message: " + bot_messages_text_single)
 
                             # Check who wrote the message
                             check_user = str(bot_messages_json["result"][message_counter]["message"]["from"]["id"])
-                            check_user_name = str(bot_messages_json["result"][message_counter]["message"]["from"]["username"])
+                            check_user_name = str(bot_messages_json["result"][message_counter]["message"]["from"]["first_name"])
                             log("From user: " + get_username(check_user))
 
                             if get_username(check_user) == check_user:
@@ -268,10 +279,29 @@ async def telegram_bridge():
                                 cursor.execute(sqlquery)
                                 db.commit()
 
-                            # The user does not want to get messages
+                            # The user wants to now who is onlone
                             if splitted[0] == "/who_is_online":
                                 # Tell the user who is online right now
                                 message = get_online_status(channel_id)
+                                log(message)
+                                send_message(check_user, message, True)
+
+                            # The user wants to toggle workday notifications
+                            if splitted[0] == "/toggle_workday_notifications":
+                                # Toggle setting
+                                if get_supress_status(check_user) == "True":
+                                    message = "You will get notification all day long!"
+                                    # Update Database
+                                    sqlquery = "UPDATE users SET supress = 'False' WHERE telegram_id = " + str(check_user)
+                                    cursor.execute(sqlquery)
+                                    db.commit()
+                                else:
+                                    message = "You will get notification on weekends and on workdays between 18-23 o'clock!"
+                                    # Update Database
+                                    sqlquery = "UPDATE users SET supress = 'True' WHERE telegram_id = " + str(check_user)
+                                    cursor.execute(sqlquery)
+                                    db.commit()
+                                # Inform the user about toggle
                                 log(message)
                                 send_message(check_user, message, True)
 
