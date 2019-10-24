@@ -48,6 +48,18 @@ def get_enabled_users():
     log("Getting messaged: " + str(chat_list_user_names))
     return chat_list
 
+def get_setting_leave_messages(telegram_id_func):
+    try:
+        sqlquery = "select leave_messages from users where telegram_id = {}".format(telegram_id_func)
+        cursor.execute(sqlquery)
+        records = cursor.fetchone()
+        if records[0] == "False":
+            return False
+        else:
+            return True
+    except:
+        return True
+
 def get_username(telegram_id_func):
     try:
         sqlquery = "select user_name from users where telegram_id = {}".format(telegram_id_func)
@@ -216,11 +228,11 @@ async def telegram_bridge():
                     if not bot_restarted:
                         # Send message to the chat and remember
                         for chat in get_enabled_users():
-                            if get_username(chat) not in last_announce:
+                            if get_username(chat) not in last_announce and get_setting_leave_messages(chat) is True:
                                 send_message(chat, message, False)
                                 last_announce = message
                             else:
-                                log("The User was online right now and does not need to be notified!")
+                                log("The User was online right now or does not want to be notified!")
 
             # Update the variables for next loop
             members_old = members
@@ -318,6 +330,25 @@ async def telegram_bridge():
                                     message = "You will get notification on weekends and on workdays between 18-23 o'clock!"
                                     # Update Database
                                     sqlquery = "UPDATE users SET supress = 'True' WHERE telegram_id = " + str(check_user)
+                                    cursor.execute(sqlquery)
+                                    db.commit()
+                                # Inform the user about toggle
+                                log(message)
+                                send_message(check_user, message, True)
+
+                            # The user wants to toggle workday notifications
+                            if splitted[0] == "/toggle_leave_notifications":
+                                # Toggle setting
+                                if get_setting_leave_messages(check_user) is True:
+                                    message = "You will no longer get notifications if the last one leaves the Discord channel!"
+                                    # Update Database
+                                    sqlquery = "UPDATE users SET leave_messages = 'False' WHERE telegram_id = " + str(check_user)
+                                    cursor.execute(sqlquery)
+                                    db.commit()
+                                else:
+                                    message = "You will now get notifications if the last one leaves the Discord channel!"
+                                    # Update Database
+                                    sqlquery = "UPDATE users SET leave_messages = 'True' WHERE telegram_id = " + str(check_user)
                                     cursor.execute(sqlquery)
                                     db.commit()
                                 # Inform the user about toggle
