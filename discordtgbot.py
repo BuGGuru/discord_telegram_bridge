@@ -59,11 +59,20 @@ def get_username(telegram_id_func):
 
 def get_supress_status(telegram_id_func):
     try:
+        # Get database entry for user
         sqlquery = "select supress from users where telegram_id = {}".format(telegram_id_func)
         cursor.execute(sqlquery)
         records = cursor.fetchone()
-        return records[0]
+
+        # If User wants to supress check the time
+        if records[0] == "True" and checktime("day") < 4 and (checktime("hour") < 20 or checktime("hour") > 22):
+            # User wants to supress and its out of the notification time
+            return True
+        else:
+            # User does not want to supress or its in the notification time
+            return False
     except:
+        # If it is not set we assume it should be supressed
         return True
 
 ####################
@@ -82,20 +91,10 @@ def get_messages(offset_func):
 # Send message to a chat
 def send_message(chat, message_func, force):
     # Check if user wants to supress notifications on workdays
-    if get_supress_status(chat) == "True" and not force:
+    if get_supress_status(chat) and not force:
         # Supress if Monday - Friday and not between 18 and 23
-        if checktime("day") < 4 and (checktime("hour") < 18 or checktime("hour") > 22):
-            message = "Supressed message for {} due to Day or Time".format(get_username(chat))
-            log(message)
-            return "suppressed"
-        else:
-            try:
-                message = "Send message to {}: {}".format(get_username(chat), message_func)
-                log(message)
-                requests.get("https://api.telegram.org/bot" + str(tgbot_token) + "/sendMessage?chat_id=" + str(chat) + "&text=" + str(message_func))
-                return message_func
-            except:
-                return False
+        message = "Supressed message for {} due to Day or Time".format(get_username(chat))
+        log(message)
     else:
         try:
             message = "Send message to {}: {}".format(get_username(chat), message_func)
@@ -202,7 +201,7 @@ async def telegram_bridge():
                                 last_announce = send_message(chat, message, False)
 
                 # Check if the last one left the channel
-                elif not member_list and last_announce != "suppressed":
+                elif not member_list:
                     message = "Discord: Der letzte ist gegangen!"
                     # Only announce to chat if the bot did not restart
                     if not bot_restarted:
