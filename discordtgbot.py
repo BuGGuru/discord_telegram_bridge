@@ -386,6 +386,26 @@ async def telegram_bridge():
                                         message = "Hey {}, there is a lonely {} that need some love. Come into Discord to help him out.".format(notify_user_username, lonely_person_username)
                                         send_message(notify_user, message, True)
 
+                            if splitted[0] == "/set_discord_username":
+                                # Check if username was given
+                                try:
+                                    print("This one is: ")
+                                    print(splitted[1])
+                                    new_discord_user_name = splitted[1]
+                                    # Update Discord username in database
+                                    sqlquery = "UPDATE users SET discord_username = '{}' WHERE telegram_id = '{}'".format(new_discord_user_name, check_user)
+                                    cursor = db.cursor()
+                                    cursor.execute(sqlquery)
+                                    db.commit()
+                                    # Inform the user
+                                    message = "Your Discord username was set to {}".format(new_discord_user_name)
+                                    log(message)
+                                    send_message(check_user, message, True)
+                                except IndexError:
+                                    message = "Please use [ /set_discord_username YOUR-USERNAME ]"
+                                    log(message)
+                                    send_message(check_user, message, True)
+
                             # Update the message counter
                             message_counter = message_counter + 1
 
