@@ -130,7 +130,7 @@ def get_online_status(channel):
         message = "Online right now: {}".format(member_list)
         return message
     else:
-        message = "Nobody is online, you are on your own! Are you lonely?"
+        message = "Nobody is online, you are on your own! Are you lonely?\nAnswer with /Yes_i_am_lonely or /No_i_am_not"
         return message
 
 def is_user_in_channel(telegram_id_func, channel):
@@ -358,6 +358,33 @@ async def telegram_bridge():
                                 # Inform the user about toggle
                                 log(message)
                                 send_message(check_user, message, True)
+
+                            # The user is lonely
+                            if splitted[0] == "/Yes_i_am_lonely":
+                                # Tell the user that everything is alright and that help might come.
+                                message = "Everything is okay. Come Online, the other guys were contacted and should be on their way."
+                                log(message)
+                                send_message(check_user, message, True)
+                                # Send the other guys a message
+                                lonely_person_username = get_username(check_user)
+                                for notify_user in get_enabled_users():
+                                    notify_user_username = get_username(notify_user)
+                                    if not lonely_person_username == notify_user_username:
+                                        message = "Hey {}, there is a lonely {} that need some love. Come into Discord to help him out.".format(notify_user_username, lonely_person_username)
+                                        send_message(notify_user, message, True)
+
+                            if splitted[0] == "/No_i_am_not":
+                                # Tell the user that everything is alright and that help might come.
+                                message = "You can fool yourself but not me! Come Online, the other guys were contacted and should be on their way."
+                                log(message)
+                                send_message(check_user, message, True)
+                                # Send the other guys a message
+                                lonely_person_username = get_username(check_user)
+                                for notify_user in get_enabled_users():
+                                    notify_user_username = get_username(notify_user)
+                                    if not lonely_person_username == notify_user_username:
+                                        message = "Hey {}, there is a lonely {} that need some love. Come into Discord to help him out.".format(notify_user_username, lonely_person_username)
+                                        send_message(notify_user, message, True)
 
                             # Update the message counter
                             message_counter = message_counter + 1
