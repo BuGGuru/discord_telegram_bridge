@@ -285,7 +285,12 @@ async def telegram_bridge():
                                 db.commit()
                                 log("Created new User")
                                 # Welcome the new User
-                                message = "Hello {}, seems you are new here. Welcome!\nYou can use the commands /enable or /disable and /who_is_online - Just try!".format(check_user_name)
+                                message = "Hello {}, seems you are new here. Welcome!\nYou can use the commands /enable " \
+                                          "or /disable and /who_is_online - Just try!\n" \
+                                          "You should set your Discord Username with [ /set_discord_username YOUR-USERNAME ]\n" \
+                                          "You can also supress notifications on workdays between 18 and 23 o'clock with /toggle_workday_notifications\n" \
+                                          "And if you dont want to get notifications if the last user left the Discord use " \
+                                          "/toggle_leave_notifications".format(check_user_name)
                                 send_message(check_user, message, True)
 
                             # Check for commands
@@ -314,7 +319,7 @@ async def telegram_bridge():
                                 cursor.execute(sqlquery)
                                 db.commit()
 
-                            # The user wants to now who is onlone
+                            # The user wants to now who is online
                             if splitted[0] == "/who_is_online":
                                 # Tell the user who is online right now
                                 message = get_online_status(channel_id)
