@@ -186,6 +186,7 @@ async def telegram_bridge():
     global members_old
     global bot_restarted
     global last_announce
+    global cursor
 
     await client.wait_until_ready()
     while not client.is_closed():
