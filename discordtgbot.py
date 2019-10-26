@@ -77,7 +77,7 @@ def get_supress_status(telegram_id_func):
         records = cursor.fetchone()
 
         # If User wants to supress check the time
-        if records[0] == "True" and checktime("day") < 4 and (checktime("hour") < 20 or checktime("hour") > 22):
+        if records[0] == "True" and checktime("day") < 4 and (checktime("hour") < 18 or checktime("hour") > 22):
             # User wants to supress and its out of the notification time
             return True
         else:
@@ -190,6 +190,10 @@ async def telegram_bridge():
     await client.wait_until_ready()
     while not client.is_closed():
         try:
+            if not db.is_connected():
+                cursor = db.cursor()
+                log("Reconnected to Database")
+
             # Variables for the bot
             channel_id = 633023114095231027
             voice_channel = client.get_channel(channel_id)
