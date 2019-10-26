@@ -69,6 +69,15 @@ def get_username(telegram_id_func):
     except:
         return telegram_id_func
 
+def get_discord_username(telegram_id_func):
+    try:
+        sqlquery = "select discord_username from users where telegram_id = {}".format(telegram_id_func)
+        cursor.execute(sqlquery)
+        records = cursor.fetchone()
+        return records[0]
+    except:
+        return telegram_id_func
+
 def get_supress_status(telegram_id_func):
     try:
         # Get database entry for user
@@ -134,7 +143,7 @@ def get_online_status(channel):
         return message
 
 def is_user_in_channel(telegram_id_func, channel):
-    if get_username(telegram_id_func) in get_online_status(channel):
+    if get_discord_username(telegram_id_func) in get_online_status(channel):
         return True
     else:
         return False
