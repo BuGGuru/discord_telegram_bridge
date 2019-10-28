@@ -45,7 +45,7 @@ def get_enabled_users():
     for row in records:
         chat_list.append(row[1])
         chat_list_user_names.append(row[2])
-    log("Getting messaged: " + str(chat_list_user_names))
+    log("Enabled users: " + str(chat_list_user_names))
     return chat_list
 
 def get_setting_leave_messages(telegram_id_func):
@@ -74,7 +74,10 @@ def get_discord_username(telegram_id_func):
         sqlquery = "select discord_username from users where telegram_id = {}".format(telegram_id_func)
         cursor.execute(sqlquery)
         records = cursor.fetchone()
-        return records[0]
+        if records[0]:
+            return records[0]
+        else:
+            return telegram_id_func
     except:
         return telegram_id_func
 
@@ -431,15 +434,15 @@ async def telegram_bridge():
                 # Set new offset to acknowledge messages on the telegram api
                 offset = str(bot_messages_json["result"][message_amount - 1]["update_id"] + 1)
 
-            # Reset variables
-            chat_list = []
-            chat_list_user_names = []
-
             # Sleep some seconds
             await asyncio.sleep(5)
 
         except Exception as e:
             print(str(e))
+
+        # Reset variables
+        chat_list = []
+        chat_list_user_names = []
 
 # Get the loop going
 client.loop.create_task(telegram_bridge())
