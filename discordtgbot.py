@@ -429,8 +429,8 @@ async def telegram_bridge():
                                     log(message)
                                     send_message(check_user, message, True)
 
-                            if splitted[0] == "/on_the_way" or "/later" or "/not_today":
-                                # Tell the user that everything is alright and that help might come.
+                            if splitted[0] == "/on_the_way" or splitted[0] == "/later" or splitted[0] == "/not_today":
+                                # Answer and relay quick reply from user
                                 message = "Send message to the other fools!"
                                 log(message)
                                 send_message(check_user, message, True)
