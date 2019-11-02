@@ -231,13 +231,13 @@ async def telegram_bridge():
                 # We only want to announce ppl that come into the channel
                 # Not if they leave
                 if len(member_list) > len(members_old):
-                    message = "Im Discord: " + str(member_list)
                     # Only announce to chat if the bot did not restart
                     if not bot_restarted:
                         # Only announce if the list is altered from the last time posted to the chat
                         if len(last_announce) != len(message):
                             for chat in get_enabled_users():
                                 if is_user_in_channel(chat, main_channel_id) == False:
+                                    message = "Im Discord: {} \nQuickReply: /on_the_way  /later  /not_today".format(member_list)
                                     send_message(chat, message, False)
                                     last_announce = message
                                 else:
@@ -428,6 +428,26 @@ async def telegram_bridge():
                                     message = "Please use [ /set_discord_username YOUR-USERNAME ]"
                                     log(message)
                                     send_message(check_user, message, True)
+
+                            if splitted[0] == "/on_the_way" or "/later" or "/not_today":
+                                # Tell the user that everything is alright and that help might come.
+                                message = "Send message to the other fools!"
+                                log(message)
+                                send_message(check_user, message, True)
+                                # Send the other guys a message
+                                reply_person_username = get_username(check_user)
+                                for notify_user in get_enabled_users():
+                                    notify_user_username = get_username(notify_user)
+                                    if not reply_person_username == notify_user_username:
+                                        if splitted[0] == "/on_the_way":
+                                            message = "Quick reply from {}: On the Way!".format(reply_person_username)
+                                            send_message(notify_user, message, False)
+                                        if splitted[0] == "/later":
+                                            message = "Quick reply from {}: Will come on later today!".format(reply_person_username)
+                                            send_message(notify_user, message, False)
+                                        if splitted[0] == "/not_today":
+                                            message = "Quick reply from {}: Not today!".format(reply_person_username)
+                                            send_message(notify_user, message, False)
 
                             # Update the message counter
                             message_counter = message_counter + 1
