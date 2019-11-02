@@ -33,6 +33,12 @@ records = cursor.fetchall()
 discord_token = records[0][1]
 tgbot_token = records[1][1]
 
+# Get main discord channels from database
+sqlquery = "select room_id from discord_channel where main = 'True'"
+cursor.execute(sqlquery)
+records = cursor.fetchone()
+main_channel_id = int(records[0])
+
 ####################
 # Database methods #
 ####################
@@ -208,8 +214,7 @@ async def telegram_bridge():
                 log("Reconnected to Database")
 
             # Variables for the bot
-            channel_id = 633023114095231027
-            voice_channel = client.get_channel(channel_id)
+            voice_channel = client.get_channel(main_channel_id)
             members = voice_channel.members
             member_list = []
 
@@ -232,7 +237,7 @@ async def telegram_bridge():
                         # Only announce if the list is altered from the last time posted to the chat
                         if len(last_announce) != len(message):
                             for chat in get_enabled_users():
-                                if is_user_in_channel(chat, channel_id) == False:
+                                if is_user_in_channel(chat, main_channel_id) == False:
                                     send_message(chat, message, False)
                                     last_announce = message
                                 else:
@@ -335,7 +340,7 @@ async def telegram_bridge():
                             # The user wants to now who is online
                             if splitted[0] == "/who_is_online":
                                 # Tell the user who is online right now
-                                message = get_online_status(channel_id)
+                                message = get_online_status(main_channel_id)
                                 log(message)
                                 send_message(check_user, message, True)
 
