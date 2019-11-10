@@ -241,7 +241,7 @@ async def telegram_bridge():
                                     send_message(chat, message, False)
                                     last_announce = message
                                 else:
-                                    log("User is online and does not need to be notified!")
+                                    log("{} is online and does not need to be notified!".format(get_discord_username(chat)))
 
                 # Check if the last one left the channel
                 elif not member_list:
@@ -286,15 +286,17 @@ async def telegram_bridge():
                     for texts in bot_messages_json["result"]:
                         # Catch key error due to other updates than message
                         try:
+                            # Get the message
                             bot_messages_text_single = str(
                                 bot_messages_json["result"][message_counter]["message"]["text"])
                             log(bot_messages_json)
-                            log("New Message: " + bot_messages_text_single)
 
                             # Check who wrote the message
                             check_user = str(bot_messages_json["result"][message_counter]["message"]["from"]["id"])
                             check_user_name = str(bot_messages_json["result"][message_counter]["message"]["from"]["first_name"])
-                            log("From user: " + get_username(check_user))
+
+                            # Log the message
+                            log("New Message from {}: {}  +".format(get_username(check_user), bot_messages_text_single))
 
                             if get_username(check_user) == check_user:
                                 # Insert new user to database
@@ -319,7 +321,6 @@ async def telegram_bridge():
                             if splitted[0] == "/enable":
                                 # Tell the user that he will get messages now
                                 message = "You will now receive messages"
-                                log(message)
                                 send_message(check_user, message, True)
                                 # Update Database
                                 sqlquery = "UPDATE users SET enabled = 'True' WHERE telegram_id = " + str(check_user)
@@ -330,7 +331,6 @@ async def telegram_bridge():
                             if splitted[0] == "/disable":
                                 # Tell the user that he will no longer get messages
                                 message = "You will no longer receive messages"
-                                log(message)
                                 send_message(check_user, message, True)
                                 # Update Database
                                 sqlquery = "UPDATE users SET enabled = 'False' WHERE telegram_id = " + str(check_user)
@@ -341,7 +341,6 @@ async def telegram_bridge():
                             if splitted[0] == "/who_is_online":
                                 # Tell the user who is online right now
                                 message = get_online_status(main_channel_id)
-                                log(message)
                                 send_message(check_user, message, True)
 
                             # The user wants to toggle workday notifications
@@ -360,7 +359,6 @@ async def telegram_bridge():
                                     cursor.execute(sqlquery)
                                     db.commit()
                                 # Inform the user about toggle
-                                log(message)
                                 send_message(check_user, message, True)
 
                             # The user wants to toggle workday notifications
@@ -379,14 +377,12 @@ async def telegram_bridge():
                                     cursor.execute(sqlquery)
                                     db.commit()
                                 # Inform the user about toggle
-                                log(message)
                                 send_message(check_user, message, True)
 
                             # The user is lonely
                             if splitted[0] == "/Yes_i_am_lonely":
                                 # Tell the user that everything is alright and that help might come.
                                 message = "Everything is okay. Come Online, the other guys were contacted and should be on their way."
-                                log(message)
                                 send_message(check_user, message, True)
                                 # Send the other guys a message
                                 lonely_person_username = get_username(check_user)
@@ -399,7 +395,6 @@ async def telegram_bridge():
                             if splitted[0] == "/No_i_am_not":
                                 # Tell the user that everything is alright and that help might come.
                                 message = "You can fool yourself but not me! Come Online, the other guys were contacted and should be on their way."
-                                log(message)
                                 send_message(check_user, message, True)
                                 # Send the other guys a message
                                 lonely_person_username = get_username(check_user)
@@ -422,17 +417,14 @@ async def telegram_bridge():
                                     db.commit()
                                     # Inform the user
                                     message = "Your Discord username was set to {}".format(new_discord_user_name)
-                                    log(message)
                                     send_message(check_user, message, True)
                                 except IndexError:
                                     message = "Please use [ /set_discord_username YOUR-USERNAME ]"
-                                    log(message)
                                     send_message(check_user, message, True)
 
                             if splitted[0] == "/on_the_way" or splitted[0] == "/later" or splitted[0] == "/not_today":
                                 # Answer and relay quick reply from user
                                 message = "Send message to the other fools!"
-                                log(message)
                                 send_message(check_user, message, True)
                                 # Send the other guys a message
                                 reply_person_username = get_username(check_user)
@@ -464,6 +456,7 @@ async def telegram_bridge():
 
         except Exception as e:
             print(str(e))
+            log("Exception: {}".format(e))
 
         # Reset variables
         chat_list = []
