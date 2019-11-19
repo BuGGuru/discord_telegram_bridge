@@ -252,7 +252,7 @@ async def telegram_bridge():
                         for chat in get_enabled_users():
                             if get_username(chat) not in last_announce and get_setting_leave_messages(chat) is True:
                                 send_message(chat, message, False)
-                                last_announce = message
+                                last_announce = "Empty"
                             else:
                                 log("The User was online right now or does not want to be notified!")
 
