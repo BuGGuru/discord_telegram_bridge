@@ -52,7 +52,7 @@ def get_enabled_users():
     for row in records:
         chat_list.append(row[1])
         chat_list_user_names.append(row[2])
-    log("Enabled users: " + str(chat_list_user_names))
+    log(2,"Enabled users: " + str(chat_list_user_names))
     return chat_list
 
 def get_setting_leave_messages(telegram_id_func):
@@ -143,11 +143,11 @@ def send_message(chat, message_func, force):
     if get_supress_status(chat) and not force:
         # Supress if Monday - Friday and not between 18 and 23
         message = "Supressed message for {} due to Day or Time".format(get_username(chat))
-        log(message)
+        log(1,message)
     else:
         try:
             message = "Send message to {}: {}".format(get_username(chat), message_func)
-            log(message)
+            log(1,message)
             requests.get("https://api.telegram.org/bot" + str(tgbot_token) + "/sendMessage?chat_id=" + str(chat) + "&text=" + str(message_func))
             return message_func
         except:
@@ -181,7 +181,7 @@ def is_user_in_channel(telegram_id_func, channel):
 ################
 
 # Log to console
-def log(output):
+def log(verbosity, output):
     global last_log
 
     # Print new Timestamp in log if last log is older than 5 seconds
@@ -193,7 +193,7 @@ def log(output):
         last_log = time.time()
 
     # Write into Database
-    sqlquery = "INSERT INTO messages (message_text) VALUES (\"{}\")".format(output)
+    sqlquery = "INSERT INTO messages (message_text, verbosity) VALUES (\"{}\", \"{}\")".format(output, verbosity)
     cursor.execute(sqlquery)
     db.commit()
 
@@ -214,7 +214,7 @@ def checktime(asked):
 ############
 
 # Log bot restart
-log("The bot restarted!")
+log(5, "The bot restarted!")
 
 if checktime("hour") > 17:
     intraday_announced = True
@@ -234,7 +234,7 @@ async def telegram_bridge():
         try:
             if not db.is_connected():
                 cursor = db.cursor()
-                log("Reconnected to Database")
+                log(5, "Reconnected to Database")
 
             # Variables for the bot
             voice_channel = client.get_channel(main_channel_id)
@@ -247,7 +247,7 @@ async def telegram_bridge():
                 if not intraday_announced:
                     if checktime("hour") == 18:
                         # Log Action
-                        log("Will announce online members to prior supressed users.")
+                        log(2,"Will announce online members to prior supressed users.")
                         # Put user into a list
                         for member in members:
                             member_list.append(member.name)
@@ -258,9 +258,9 @@ async def telegram_bridge():
                                     message = "Im Discord: {} \nQuickReply: /on_the_way  /later  /not_today".format(member_list)
                                     send_message(chat, message, False)
                                 else:
-                                    log("{} was not supressed and does not need to be notified!".format(get_discord_username(chat)))
+                                    log(2,"{} was not supressed and does not need to be notified!".format(get_discord_username(chat)))
                             else:
-                                log("{} is online and does not need to be notified!".format(get_discord_username(chat)))
+                                log(2,"{} is online and does not need to be notified!".format(get_discord_username(chat)))
                         intraday_announced = True
 
             # Check if someone joined or left
@@ -270,7 +270,7 @@ async def telegram_bridge():
                     member_list.append(member.name)
 
                 # Verbose for cli
-                log("Now online: " + str(member_list))
+                log(2,"Now online: " + str(member_list))
 
                 # Check if the new member list is longer (char wise due to laziness)
                 # We only want to announce ppl that come into the channel
@@ -284,7 +284,7 @@ async def telegram_bridge():
                                 send_message(chat, message, False)
                                 last_announce = message
                             else:
-                                log("{} is online and does not need to be notified!".format(get_discord_username(chat)))
+                                log(2,"{} is online and does not need to be notified!".format(get_discord_username(chat)))
 
                 # Check if the last one left the channel
                 elif not member_list:
@@ -297,7 +297,7 @@ async def telegram_bridge():
                                 send_message(chat, message, False)
                                 last_announce = "Empty"
                             else:
-                                log("The User was online right now or does not want to be notified!")
+                                log(2,"The User was online right now or does not want to be notified!")
 
             # Update the variables for next loop
             members_old = members
@@ -332,21 +332,21 @@ async def telegram_bridge():
                             # Get the message
                             bot_messages_text_single = str(
                                 bot_messages_json["result"][message_counter]["message"]["text"])
-                            log(bot_messages_json)
+                            log(2,bot_messages_json)
 
                             # Check who wrote the message
                             check_user = str(bot_messages_json["result"][message_counter]["message"]["from"]["id"])
                             check_user_name = str(bot_messages_json["result"][message_counter]["message"]["from"]["first_name"])
 
                             # Log the message
-                            log("New Message from {}: {}".format(get_username(check_user), bot_messages_text_single))
+                            log(1,"New Message from {}: {}".format(get_username(check_user), bot_messages_text_single))
 
                             if get_username(check_user) == check_user:
                                 # Insert new user to database
                                 sqlquery = "INSERT INTO users (telegram_id, user_name) VALUES (\"{}\",\"{}\")".format(check_user, check_user_name)
                                 cursor.execute(sqlquery)
                                 db.commit()
-                                log("Created new User")
+                                log(2,"Created new User")
                                 # Welcome the new User
                                 message = "Hello {}, seems you are new here. Welcome!\nYou can use the commands /enable " \
                                           "or /disable and /who_is_online - Just try!\n" \
@@ -489,7 +489,7 @@ async def telegram_bridge():
 
                         # Discard all other messages
                         except KeyError:
-                            log("Another type of message received")
+                            log(2,"Another type of message received")
 
                 # Set new offset to acknowledge messages on the telegram api
                 offset = str(bot_messages_json["result"][message_amount - 1]["update_id"] + 1)
@@ -499,7 +499,7 @@ async def telegram_bridge():
 
         except Exception as e:
             print(str(e))
-            log("Exception: {}".format(e))
+            log(5,"Exception: {}".format(e))
 
         # Reset variables
         chat_list = []
