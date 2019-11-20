@@ -497,9 +497,9 @@ async def telegram_bridge():
             # Sleep some seconds
             await asyncio.sleep(5)
 
-        except Exception as e:
-            print(str(e))
-            log(5,"Exception: {}".format(e))
+        except Exception as error:
+            print(str(error))
+            log(5,"Exception: {}".format(error))
 
         # Reset variables
         chat_list = []
