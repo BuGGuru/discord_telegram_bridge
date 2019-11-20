@@ -18,6 +18,7 @@ logs = []
 last_log = 0
 chat_list = []
 chat_list_user_names = []
+intraday_announced = False
 
 # Get the Database running
 db = mysql.connector.connect(host='192.168.2.67',
@@ -100,6 +101,24 @@ def get_supress_status(telegram_id_func):
             return True
         else:
             # User does not want to supress or its in the notification time
+            return False
+    except:
+        # If it is not set we assume it should be supressed
+        return True
+
+def get_supress_config(telegram_id_func):
+    try:
+        # Get database entry for user
+        sqlquery = "select supress from users where telegram_id = {}".format(telegram_id_func)
+        cursor.execute(sqlquery)
+        records = cursor.fetchone()
+
+        # If User wants to supress check the time
+        if records[0] == "True":
+            # User wants to supress
+            return True
+        else:
+            # User does not want to supress
             return False
     except:
         # If it is not set we assume it should be supressed
@@ -197,6 +216,9 @@ def checktime(asked):
 # Log bot restart
 log("The bot restarted!")
 
+if checktime("hour") > 17:
+    intraday_announced = True
+
 async def telegram_bridge():
     global offset
     global chat_list
@@ -205,6 +227,7 @@ async def telegram_bridge():
     global bot_restarted
     global last_announce
     global cursor
+    global intraday_announced
 
     await client.wait_until_ready()
     while not client.is_closed():
@@ -217,6 +240,28 @@ async def telegram_bridge():
             voice_channel = client.get_channel(main_channel_id)
             members = voice_channel.members
             member_list = []
+
+            # Announce if someone is online and it turns 18 o'clock
+            # Announce only to user that supressed the messages before
+            if members and not bot_restarted:
+                if not intraday_announced:
+                    if checktime("hour") == 18:
+                        # Log Action
+                        log("Will announce online members to prior supressed users.")
+                        # Put user into a list
+                        for member in members:
+                            member_list.append(member.name)
+                        # Message users
+                        for chat in get_enabled_users():
+                            if is_user_in_channel(chat, main_channel_id) == False:
+                                if get_supress_config(chat):
+                                    message = "Im Discord: {} \nQuickReply: /on_the_way  /later  /not_today".format(member_list)
+                                    send_message(chat, message, False)
+                                else:
+                                    log("{} was not supressed and does not need to be notified!".format(get_discord_username(chat)))
+                            else:
+                                log("{} is online and does not need to be notified!".format(get_discord_username(chat)))
+                        intraday_announced = True
 
             # Check if someone joined or left
             if members != members_old:
@@ -459,6 +504,8 @@ async def telegram_bridge():
         # Reset variables
         chat_list = []
         chat_list_user_names = []
+        if checktime("hour") == 1:
+            intraday_announced = False
 
 # Get the loop going
 client.loop.create_task(telegram_bridge())
