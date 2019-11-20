@@ -233,15 +233,13 @@ async def telegram_bridge():
                 if len(member_list) > len(members_old):
                     # Only announce to chat if the bot did not restart
                     if not bot_restarted:
-                        # Only announce if the list is altered from the last time posted to the chat
-                        if len(last_announce) != len(message):
-                            for chat in get_enabled_users():
-                                if is_user_in_channel(chat, main_channel_id) == False:
-                                    message = "Im Discord: {} \nQuickReply: /on_the_way  /later  /not_today".format(member_list)
-                                    send_message(chat, message, False)
-                                    last_announce = message
-                                else:
-                                    log("{} is online and does not need to be notified!".format(get_discord_username(chat)))
+                        for chat in get_enabled_users():
+                            if is_user_in_channel(chat, main_channel_id) == False:
+                                message = "Im Discord: {} \nQuickReply: /on_the_way  /later  /not_today".format(member_list)
+                                send_message(chat, message, False)
+                                last_announce = message
+                            else:
+                                log("{} is online and does not need to be notified!".format(get_discord_username(chat)))
 
                 # Check if the last one left the channel
                 elif not member_list:
@@ -296,7 +294,7 @@ async def telegram_bridge():
                             check_user_name = str(bot_messages_json["result"][message_counter]["message"]["from"]["first_name"])
 
                             # Log the message
-                            log("New Message from {}: {}  +".format(get_username(check_user), bot_messages_text_single))
+                            log("New Message from {}: {}".format(get_username(check_user), bot_messages_text_single))
 
                             if get_username(check_user) == check_user:
                                 # Insert new user to database
