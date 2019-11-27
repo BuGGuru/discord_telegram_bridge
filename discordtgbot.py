@@ -7,6 +7,8 @@ from datetime import datetime
 
 client = discord.Client()
 
+
+
 db_pass = open("dbpass.cfg", "r").read()
 
 # Variables to work with
@@ -45,6 +47,7 @@ main_channel_id = int(records[0])
 ####################
 
 # Get the users with enabled notifications
+# Returns a list with telegram chat IDs
 def get_enabled_users():
     sqlquery = "select * from users where enabled = 'True'"
     cursor.execute(sqlquery)
@@ -55,6 +58,8 @@ def get_enabled_users():
     log(2,"Enabled users: " + str(chat_list_user_names))
     return chat_list
 
+# Checks if a given user wants to get the message that the last one left discord.
+# Returns True or False
 def get_setting_leave_messages(telegram_id_func):
     try:
         sqlquery = "select leave_messages from users where telegram_id = {}".format(telegram_id_func)
@@ -67,6 +72,8 @@ def get_setting_leave_messages(telegram_id_func):
     except:
         return True
 
+# Converts a given Telegram chat ID to the bot-username
+# Returns the Username
 def get_username(telegram_id_func):
     try:
         sqlquery = "select user_name from users where telegram_id = {}".format(telegram_id_func)
@@ -76,6 +83,8 @@ def get_username(telegram_id_func):
     except:
         return telegram_id_func
 
+# Converts a given Telegram chat ID to the bot-username
+# Returns the Discord-Username
 def get_discord_username(telegram_id_func):
     try:
         sqlquery = "select discord_username from users where telegram_id = {}".format(telegram_id_func)
@@ -88,6 +97,8 @@ def get_discord_username(telegram_id_func):
     except:
         return telegram_id_func
 
+# Checks if a user wants to supress messages based on the current time
+# Returns True or False
 def get_supress_status(telegram_id_func):
     try:
         # Get database entry for user
@@ -106,6 +117,8 @@ def get_supress_status(telegram_id_func):
         # If it is not set we assume it should be supressed
         return True
 
+# Checks if a user wants to supress messages in general
+# Returns True or False
 def get_supress_config(telegram_id_func):
     try:
         # Get database entry for user
@@ -140,6 +153,7 @@ def get_messages(offset_func):
 # Send message to a chat
 def send_message(chat, message_func, force):
     # Check if user wants to supress notifications on workdays
+    # Some messages like bot replies to the user need to be forced
     if get_supress_status(chat) and not force:
         # Supress if Monday - Friday and not between 18 and 23
         message = "Supressed message for {} due to Day or Time".format(get_username(chat))
@@ -157,6 +171,8 @@ def send_message(chat, message_func, force):
 # Discord methods #
 ###################
 
+# Checks who is online right now
+# Returns a message
 def get_online_status(channel):
     voice_channel = client.get_channel(channel)
     members = voice_channel.members
@@ -170,6 +186,8 @@ def get_online_status(channel):
         message = "Nobody is online, you are on your own! Are you lonely?\nAnswer with /Yes_i_am_lonely or /No_i_am_not"
         return message
 
+# Checks if a given user is online
+# Returns True or False
 def is_user_in_channel(telegram_id_func, channel):
     if get_discord_username(telegram_id_func) in get_online_status(channel):
         return True
@@ -197,7 +215,9 @@ def log(verbosity, output):
     cursor.execute(sqlquery)
     db.commit()
 
-# Check hour as of right now
+# Looks up the current Day or Hour
+# Hours: 0-23 or Days: 0-7 (Monday-Sunday)
+# Returns the Hour or Day as integer
 def checktime(asked):
     if asked == "hour":
         format = "%H"
@@ -208,7 +228,6 @@ def checktime(asked):
         day = datetime.today().weekday()
         return int(day)
 
-
 ############
 # Main Bot #
 ############
@@ -216,6 +235,7 @@ def checktime(asked):
 # Log bot restart
 log(5, "The bot restarted!")
 
+# Only needed if the bot did restart
 if checktime("hour") > 17:
     intraday_announced = True
 
@@ -229,9 +249,12 @@ async def telegram_bridge():
     global cursor
     global intraday_announced
 
+    # Wait after restart till the bot is logged into discord
     await client.wait_until_ready()
+    # Start the whole loop
     while not client.is_closed():
         try:
+            # Check if we have a connection to the database or try to reconnect
             if not db.is_connected():
                 cursor = db.cursor()
                 log(5, "Reconnected to Database")
@@ -253,12 +276,16 @@ async def telegram_bridge():
                             member_list.append(member.name)
                         # Message users
                         for chat in get_enabled_users():
+                            # Check that the user is not online
                             if is_user_in_channel(chat, main_channel_id) == False:
+                                # User with supress enabled getting notified
                                 if get_supress_config(chat):
                                     message = "Im Discord: {} \nMessage: /on_the_way  /later  /not_today".format(member_list)
                                     send_message(chat, message, False)
+                                # User was not supressed
                                 else:
                                     log(2,"{} was not supressed and does not need to be notified!".format(get_discord_username(chat)))
+                            # User is online
                             else:
                                 log(2,"{} is online and does not need to be notified!".format(get_discord_username(chat)))
                         intraday_announced = True
@@ -278,11 +305,14 @@ async def telegram_bridge():
                 if len(member_list) > len(members_old):
                     # Only announce to chat if the bot did not restart
                     if not bot_restarted:
+                        # Check who wants to get messages
                         for chat in get_enabled_users():
+                            # Check if user is online
                             if is_user_in_channel(chat, main_channel_id) == False:
                                 message = "Im Discord: {} \nMessage: /on_the_way  /later  /not_today".format(member_list)
                                 send_message(chat, message, False)
                                 last_announce = message
+                            # If user is online he does not need to be notified
                             else:
                                 log(2,"{} is online and does not need to be notified!".format(get_discord_username(chat)))
 
@@ -341,6 +371,7 @@ async def telegram_bridge():
                             # Log the message
                             log(1,"New Message from {}: {}".format(get_username(check_user), bot_messages_text_single))
 
+                            # Create new user if unknown
                             if get_username(check_user) == check_user:
                                 # Insert new user to database
                                 sqlquery = "INSERT INTO users (telegram_id, user_name) VALUES (\"{}\",\"{}\")".format(check_user, check_user_name)
@@ -435,6 +466,7 @@ async def telegram_bridge():
                                         message = "Hey {}, there is a lonely {} that need some love. Come into Discord to help him out.".format(notify_user_username, lonely_person_username)
                                         send_message(notify_user, message, True)
 
+                            # The user is not lonely
                             if splitted[0] == "/No_i_am_not":
                                 # Tell the user that everything is alright and that help might come.
                                 message = "You can fool yourself but not me! Come Online, the other guys were contacted and should be on their way."
@@ -447,11 +479,10 @@ async def telegram_bridge():
                                         message = "Hey {}, there is a lonely {} that need some love. Come into Discord to help him out.".format(notify_user_username, lonely_person_username)
                                         send_message(notify_user, message, True)
 
+                            # User wants to set or change his Discord username
                             if splitted[0] == "/set_discord_username":
                                 # Check if username was given
                                 try:
-                                    print("This one is: ")
-                                    print(splitted[1])
                                     new_discord_user_name = splitted[1]
                                     # Update Discord username in database
                                     sqlquery = "UPDATE users SET discord_username = '{}' WHERE telegram_id = '{}'".format(new_discord_user_name, check_user)
@@ -465,6 +496,7 @@ async def telegram_bridge():
                                     message = "Please use [ /set_discord_username YOUR-USERNAME ]"
                                     send_message(check_user, message, True)
 
+                            # User wants to broadcast a message
                             if splitted[0] == "/on_the_way" or splitted[0] == "/later" or splitted[0] == "/not_today":
                                 # Answer and relay message from user
                                 message = "Send message to the other fools!"
@@ -497,6 +529,7 @@ async def telegram_bridge():
             # Sleep some seconds
             await asyncio.sleep(5)
 
+        # Chatch errors and log them to database
         except Exception as error:
             print(str(error))
             log(5,"Exception: {}".format(error))
