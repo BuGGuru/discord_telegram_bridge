@@ -200,7 +200,11 @@ def get_online_status(channel):
         message = "Online right now: {}".format(member_list)
         return message
     else:
-        message = "Nobody is online, you are on your own! Are you lonely?\nAnswer with /Yes_i_am_lonely or /No_i_am_not"
+        message = "Nobody is online, you are on your own!"
+        for user in get_enabled_users():
+            status = get_day_status(user)
+            if status:
+                message = message + "\n" + get_username(user) + "'s Status: " + status
         return message
 
 # Checks if a given user is online
