@@ -189,8 +189,9 @@ def send_message(chat, message_func, force):
 ###################
 
 # Checks who is online right now
-# Returns a message
-def get_online_status(channel):
+# Also checks the day_status of the users
+# Returns a message with optional day status
+def get_online_status(channel, status):
     voice_channel = client.get_channel(channel)
     members = voice_channel.members
     member_list = []
@@ -198,19 +199,21 @@ def get_online_status(channel):
         member_list.append(member.name)
     if member_list:
         message = "Online right now: {}".format(member_list)
-        return message
     else:
         message = "Nobody is online, you are on your own!"
+
+    if status:
         for user in get_enabled_users():
             status = get_day_status(user)
             if status:
                 message = message + "\n" + get_username(user) + "'s Status: " + status
-        return message
+
+    return message
 
 # Checks if a given user is online
 # Returns True or False
 def is_user_in_channel(telegram_id_func, channel):
-    if get_discord_username(telegram_id_func) in get_online_status(channel):
+    if get_discord_username(telegram_id_func) in get_online_status(channel, False):
         return True
     else:
         return False
@@ -435,7 +438,7 @@ async def telegram_bridge():
                             # The user wants to now who is online
                             if splitted[0] == "/who_is_online":
                                 # Tell the user who is online right now
-                                message = get_online_status(main_channel_id)
+                                message = get_online_status(main_channel_id, True)
                                 send_message(check_user, message, True)
 
                             # The user wants to toggle workday notifications
