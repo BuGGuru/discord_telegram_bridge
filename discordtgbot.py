@@ -204,9 +204,9 @@ def get_online_status(channel, status):
 
     if status:
         for user in get_enabled_users():
-            status = get_day_status(user)
-            if status:
-                message = message + "\n" + get_username(user) + "'s Status: " + status
+            user_day_status = get_day_status(user)
+            if user_day_status and (get_discord_username(user) not in member_list):
+                message = message + "\n" + get_username(user) + "'s Status: " + user_day_status
 
     return message
 
