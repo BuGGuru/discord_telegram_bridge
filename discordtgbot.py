@@ -255,7 +255,7 @@ async def telegram_bridge():
                         for chat in get_enabled_users():
                             if is_user_in_channel(chat, main_channel_id) == False:
                                 if get_supress_config(chat):
-                                    message = "Im Discord: {} \nQuickReply: /on_the_way  /later  /not_today".format(member_list)
+                                    message = "Im Discord: {} \nMessage: /on_the_way  /later  /not_today".format(member_list)
                                     send_message(chat, message, False)
                                 else:
                                     log(2,"{} was not supressed and does not need to be notified!".format(get_discord_username(chat)))
@@ -280,7 +280,7 @@ async def telegram_bridge():
                     if not bot_restarted:
                         for chat in get_enabled_users():
                             if is_user_in_channel(chat, main_channel_id) == False:
-                                message = "Im Discord: {} \nQuickReply: /on_the_way  /later  /not_today".format(member_list)
+                                message = "Im Discord: {} \nMessage: /on_the_way  /later  /not_today".format(member_list)
                                 send_message(chat, message, False)
                                 last_announce = message
                             else:
@@ -466,7 +466,7 @@ async def telegram_bridge():
                                     send_message(check_user, message, True)
 
                             if splitted[0] == "/on_the_way" or splitted[0] == "/later" or splitted[0] == "/not_today":
-                                # Answer and relay quick reply from user
+                                # Answer and relay message from user
                                 message = "Send message to the other fools!"
                                 send_message(check_user, message, True)
                                 # Send the other guys a message
@@ -475,13 +475,13 @@ async def telegram_bridge():
                                     notify_user_username = get_username(notify_user)
                                     if not reply_person_username == notify_user_username:
                                         if splitted[0] == "/on_the_way":
-                                            message = "Quick reply from {}: On the Way!".format(reply_person_username)
+                                            message = "Message from {}: On the Way!".format(reply_person_username)
                                             send_message(notify_user, message, False)
                                         if splitted[0] == "/later":
-                                            message = "Quick reply from {}: Will come on later today!".format(reply_person_username)
+                                            message = "Message from {}: Will come on later today!".format(reply_person_username)
                                             send_message(notify_user, message, False)
                                         if splitted[0] == "/not_today":
-                                            message = "Quick reply from {}: Not today!".format(reply_person_username)
+                                            message = "Message from {}: Not today!".format(reply_person_username)
                                             send_message(notify_user, message, False)
 
                             # Update the message counter
