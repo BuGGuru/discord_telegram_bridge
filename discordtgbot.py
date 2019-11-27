@@ -4,9 +4,21 @@ import requests
 import mysql.connector
 import time
 from datetime import datetime
+import configparser
 
 client = discord.Client()
-db_pass = open("dbpass.cfg", "r").read()
+
+#############
+## Configs ##
+#############
+
+## Get database config
+config = configparser.RawConfigParser()
+config.read("./database.ini")
+dbhost = config.get("Database", "dbhost")
+database = config.get("Database", "database")
+dbuser = config.get("Database", "dbuser")
+dbpass = config.get("Database", "dbpass")
 
 # Variables to work with
 members_old = ""
@@ -20,10 +32,10 @@ chat_list_user_names = []
 intraday_announced = False
 
 # Get the Database running
-db = mysql.connector.connect(host='192.168.2.67',
-                             database='discordtgbot',
-                             user='guru',
-                             password=db_pass)
+db = mysql.connector.connect(host=dbhost,
+                             database=database,
+                             user=dbuser,
+                             password=dbpass)
 cursor = db.cursor()
 
 # Get configs from database
