@@ -6,9 +6,6 @@ import time
 from datetime import datetime
 
 client = discord.Client()
-
-
-
 db_pass = open("dbpass.cfg", "r").read()
 
 # Variables to work with
@@ -137,6 +134,20 @@ def get_supress_config(telegram_id_func):
         # If it is not set we assume it should be supressed
         return True
 
+# Check the day_status of a given user
+# Returns the day_status
+def get_day_status(telegram_id_func):
+    try:
+        # Get database entry for user
+        sqlquery = "select day_status from users where telegram_id = {} AND day_status_day = {}".format(telegram_id_func, checktime("day"))
+        cursor.execute(sqlquery)
+        records = cursor.fetchone()
+        # Return the day_status
+        return records[0]
+    except:
+        # Return False if not set
+        return False
+
 ####################
 # Telegram methods #
 ####################
@@ -153,11 +164,17 @@ def get_messages(offset_func):
 # Send message to a chat
 def send_message(chat, message_func, force):
     # Check if user wants to supress notifications on workdays
-    # Some messages like bot replies to the user need to be forced
     if get_supress_status(chat) and not force:
         # Supress if Monday - Friday and not between 18 and 23
         message = "Supressed message for {} due to Day or Time".format(get_username(chat))
         log(1,message)
+
+    # Supress since user does not come online today
+    elif get_day_status(chat) == "/not_today" and not force:
+        message = "Supressed message for {} due to day_status".format(get_username(chat))
+        log(1,message)
+
+    # Some messages like bot replies to the user need to be forced
     else:
         try:
             message = "Send message to {}: {}".format(get_username(chat), message_func)
@@ -498,9 +515,18 @@ async def telegram_bridge():
 
                             # User wants to broadcast a message
                             if splitted[0] == "/on_the_way" or splitted[0] == "/later" or splitted[0] == "/not_today":
-                                # Answer and relay message from user
+                                # Confirm to the user
                                 message = "Send message to the other fools!"
                                 send_message(check_user, message, True)
+
+                                # Write user status to database
+                                cursor = db.cursor()
+                                sqlquery = "UPDATE users SET day_status = '{}' WHERE telegram_id = '{}'".format(splitted[0], check_user)
+                                cursor.execute(sqlquery)
+                                sqlquery = "UPDATE users SET day_status_day = '{}' WHERE telegram_id = '{}'".format(checktime("day"), check_user)
+                                cursor.execute(sqlquery)
+                                db.commit()
+
                                 # Send the other guys a message
                                 reply_person_username = get_username(check_user)
                                 for notify_user in get_enabled_users():
