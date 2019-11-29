@@ -39,11 +39,24 @@ db = mysql.connector.connect(host=dbhost,
 cursor = db.cursor()
 
 # Get configs from database
-sqlquery = "select * from configs"
+
+# Discord token
+sqlquery = "SELECT config_value FROM configs WHERE config_name = 'discord_token'"
 cursor.execute(sqlquery)
-records = cursor.fetchall()
-discord_token = records[0][1]
-tgbot_token = records[1][1]
+records = cursor.fetchone()
+discord_token = records[0]
+
+# Telegram token
+sqlquery = "SELECT config_value FROM configs WHERE config_name = 'telegram_token'"
+cursor.execute(sqlquery)
+records = cursor.fetchone()
+tgbot_token = records[0]
+
+# CLI verbosity
+sqlquery = "SELECT config_value FROM configs WHERE config_name = 'cli_verbosity'"
+cursor.execute(sqlquery)
+records = cursor.fetchone()
+cli_verbosity = int(records[0])
 
 # Get main discord channels from database
 sqlquery = "select room_id from discord_channel where main = 'True'"
@@ -283,13 +296,14 @@ def is_user_in_channel(telegram_id_func, channel):
 def log(verbosity, output):
     global last_log
 
-    # Print new Timestamp in log if last log is older than 5 seconds
-    if time.time() - last_log > 5:
-        print("\n-------------------\n" + datetime.now().strftime('%Y-%m-%d %H:%M:%S') + "\n-------------------\n" + str(output))
-        last_log = time.time()
-    else:
-        print(str(output))
-        last_log = time.time()
+    if verbosity <= cli_verbosity:
+        # Print new Timestamp in log if last log is older than 5 seconds
+        if time.time() - last_log > 5:
+            print("\n-------------------\n" + datetime.now().strftime('%Y-%m-%d %H:%M:%S') + "\n-------------------\n" + str(output))
+            last_log = time.time()
+        else:
+            print(str(output))
+            last_log = time.time()
 
     # Write into Database
     sqlquery = "INSERT INTO messages (message_text, verbosity) VALUES (\"{}\", \"{}\")".format(output, verbosity)
@@ -329,6 +343,7 @@ async def telegram_bridge():
     global last_announce
     global cursor
     global intraday_announced
+    global cli_verbosity
 
     # Wait after restart till the bot is logged into discord
     await client.wait_until_ready()
@@ -443,7 +458,7 @@ async def telegram_bridge():
                             # Get the message
                             bot_messages_text_single = str(
                                 bot_messages_json["result"][message_counter]["message"]["text"])
-                            log(2, bot_messages_json)
+                            log(5, bot_messages_json)
 
                             # Check who wrote the message
                             check_user = str(bot_messages_json["result"][message_counter]["message"]["from"]["id"])
@@ -642,6 +657,39 @@ async def telegram_bridge():
                                               "Day = 0-6 for Monday-Sunday and start/end are hours from 1-24\n" \
                                               "Example: /set_time_window 2,12,23\n" \
                                               "For Wednesday between 12 and 23 o'clock"
+                                    send_message(check_user, message, True)
+
+                            # Admin wants to set the verbosity level
+                            if splitted[0] == "/set_verbosity":
+                                # Check if valid level was given
+                                try:
+                                    new_verbosity_level = int(splitted[1])
+
+                                    # Check data
+                                    if new_verbosity_level < 10:
+                                        # Update Database
+                                        sqlquery = "UPDATE configs SET config_value = '{}' WHERE config_name = 'cli_verbosity'".format(new_verbosity_level)
+                                        cursor = db.cursor()
+                                        cursor.execute(sqlquery)
+                                        db.commit()
+
+                                        # Set config
+                                        cli_verbosity = new_verbosity_level
+
+                                        # Inform the user
+                                        message = "Set the verbosity level to: {}".format(new_verbosity_level)
+                                        send_message(check_user, message, True)
+
+                                    else:
+                                        # If the user did not give a valid time window jump to exception message
+                                        raise Exception
+
+                                # The user did not give a valid time window
+                                except Exception as error:
+                                    log(5, "Exception: {}".format(error))
+
+                                    message = "Please use [ /set_verbosity level ]\n" \
+                                              "Level can be: 0-9"
                                     send_message(check_user, message, True)
 
                             # Update the message counter
