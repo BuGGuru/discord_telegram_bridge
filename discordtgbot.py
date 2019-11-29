@@ -116,7 +116,7 @@ def get_supress_status(telegram_id_func):
         records = cursor.fetchone()
 
         # If User wants to supress check the time
-        if records[0] == "True" and checktime("day") < 4 and (checktime("hour") < 18 or checktime("hour") > 22):
+        if records[0] == "True" and checktime("day") < 5 and (checktime("hour") < 18 or checktime("hour") > 22):
             # User wants to supress and its out of the notification time
             return True
         else:
@@ -160,6 +160,43 @@ def get_day_status(telegram_id_func):
         # Return False if not set
         return False
 
+
+def get_today_window_state(telegram_id_func):
+    try:
+        # Get database entry for user
+        sqlquery = "select * from times where telegram_id = {} AND day = {}".format(telegram_id_func, checktime("day"))
+        cursor.execute(sqlquery)
+        records = cursor.fetchone()
+        # Return the day_status
+        return records[0]
+    except:
+        # Return False if not set
+        return False
+
+def get_today_window_start(telegram_id_func):
+    try:
+        # Get database entry for user
+        sqlquery = "select start from times where telegram_id = {} AND day = {}".format(telegram_id_func, checktime("day"))
+        cursor.execute(sqlquery)
+        records = cursor.fetchone()
+        # Return the day_status
+        return int(records[0])
+    except:
+        # Return False if not set
+        return False
+
+def get_today_window_end(telegram_id_func):
+    try:
+        # Get database entry for user
+        sqlquery = "select end from times where telegram_id = {} AND day = {}".format(telegram_id_func, checktime("day"))
+        cursor.execute(sqlquery)
+        records = cursor.fetchone()
+        # Return the day_status
+        return int(records[0])
+    except:
+        # Return False if not set
+        return False
+
 ####################
 # Telegram methods #
 ####################
@@ -175,10 +212,17 @@ def get_messages(offset_func):
 
 # Send message to a chat
 def send_message(chat, message_func, force):
-    # Check if user wants to supress notifications on workdays
-    if get_supress_status(chat) and not force:
+
+    # Check if user has a custom time window for today
+    if get_today_window_state(chat) and (checktime("hour") < get_today_window_start(chat) or checktime("hour") > get_today_window_end(chat)) and not force:
         # Supress if Monday - Friday and not between 18 and 23
-        message = "Supressed message for {} due to Day or Time".format(get_username(chat))
+        message = "Suppressed message for {} due to custom user setting for today".format(get_username(chat))
+        log(1, message)
+
+    # Check if user wants to supress notifications on workdays in general
+    # Supress if Monday - Friday and not between 18 and 23
+    elif get_supress_status(chat) and not get_today_window_state(chat) and not force:
+        message = "Suppressed message for {} due to Day or Time".format(get_username(chat))
         log(1,message)
 
     # Supress since user does not come online today
@@ -189,6 +233,7 @@ def send_message(chat, message_func, force):
     # Some messages like bot replies to the user need to be forced
     else:
         try:
+            # Send message
             message = "Send message to {}: {}".format(get_username(chat), message_func)
             log(1,message)
             requests.get("https://api.telegram.org/bot" + str(tgbot_token) + "/sendMessage?chat_id=" + str(chat) + "&text=" + str(message_func))
@@ -560,6 +605,44 @@ async def telegram_bridge():
                                         if splitted[0] == "/not_today":
                                             message = "Message from {}: Not today!".format(reply_person_username)
                                             send_message(notify_user, message, False)
+
+                            # User wants to set a time window for messages
+                            if splitted[0] == "/set_time_window":
+                                # Check if valid time window was given
+                                try:
+                                    # Split user data into pieces
+                                    command_split = splitted[1].split(',')
+                                    time_window_day = int(command_split[0])
+                                    time_window_start = int(command_split[1])
+                                    time_window_end = int(command_split[2])
+
+                                    # Check data and update Database
+                                    if time_window_day < 7 and time_window_start < 25 and time_window_start < 25:
+                                        sqlquery = "INSERT INTO times (telegram_id, day, start, end) VALUES" \
+                                                   " ('{}', '{}', '{}', '{}') ON DUPLICATE KEY UPDATE start = '{}', end = '{}'"\
+                                            .format(check_user, time_window_day, time_window_start, time_window_end, time_window_start, time_window_end)
+
+                                        cursor = db.cursor()
+                                        cursor.execute(sqlquery)
+                                        db.commit()
+
+                                        # Inform the user
+                                        message = "Your new time window seems valid, good job!"
+                                        send_message(check_user, message, True)
+
+                                    else:
+                                        # If the user did not give a valid time window jump to exception message
+                                        raise Exception
+
+                                # The user did not give a valid time window
+                                except Exception as error:
+                                    log(5, "Exception: {}".format(error))
+
+                                    message = "Please use [ /set_time_window day,start,end ]\n" \
+                                              "Day = 0-6 for Monday-Sunday and start/end are hours from 1-24\n" \
+                                              "Example: /set_time_window 2,12,23\n" \
+                                              "For Wednesday between 12 and 23 o'clock"
+                                    send_message(check_user, message, True)
 
                             # Update the message counter
                             message_counter = message_counter + 1
