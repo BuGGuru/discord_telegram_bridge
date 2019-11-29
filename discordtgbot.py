@@ -8,9 +8,9 @@ import configparser
 
 client = discord.Client()
 
-#############
-## Configs ##
-#############
+###########
+# Configs #
+###########
 
 ## Get database config
 config = configparser.RawConfigParser()
@@ -64,7 +64,7 @@ def get_enabled_users():
     for row in records:
         chat_list.append(row[1])
         chat_list_user_names.append(row[2])
-    log(2,"Enabled users: " + str(chat_list_user_names))
+    log(2, "Enabled users: " + str(chat_list_user_names))
     return chat_list
 
 # Checks if a given user wants to get the message that the last one left discord.
@@ -106,44 +106,44 @@ def get_discord_username(telegram_id_func):
     except:
         return telegram_id_func
 
-# Checks if a user wants to supress messages based on the current time
+# Checks if a user wants to suppress messages based on the current time
 # Returns True or False
-def get_supress_status(telegram_id_func):
+def get_suppress_status(telegram_id_func):
     try:
         # Get database entry for user
-        sqlquery = "select supress from users where telegram_id = {}".format(telegram_id_func)
+        sqlquery = "select suppress from users where telegram_id = {}".format(telegram_id_func)
         cursor.execute(sqlquery)
         records = cursor.fetchone()
 
-        # If User wants to supress check the time
+        # If User wants to suppress check the time
         if records[0] == "True" and checktime("day") < 5 and (checktime("hour") < 18 or checktime("hour") > 22):
-            # User wants to supress and its out of the notification time
+            # User wants to suppress and its out of the notification time
             return True
         else:
-            # User does not want to supress or its in the notification time
+            # User does not want to suppress or its in the notification time
             return False
     except:
-        # If it is not set we assume it should be supressed
+        # If it is not set we assume it should be suppressed
         return True
 
-# Checks if a user wants to supress messages in general
+# Checks if a user wants to suppress messages in general
 # Returns True or False
-def get_supress_config(telegram_id_func):
+def get_suppress_config(telegram_id_func):
     try:
         # Get database entry for user
-        sqlquery = "select supress from users where telegram_id = {}".format(telegram_id_func)
+        sqlquery = "select suppress from users where telegram_id = {}".format(telegram_id_func)
         cursor.execute(sqlquery)
         records = cursor.fetchone()
 
-        # If User wants to supress check the time
+        # If User wants to suppress check the time
         if records[0] == "True":
-            # User wants to supress
+            # User wants to suppress
             return True
         else:
-            # User does not want to supress
+            # User does not want to suppress
             return False
     except:
-        # If it is not set we assume it should be supressed
+        # If it is not set we assume it should be suppressed
         return True
 
 # Check the day_status of a given user
@@ -215,27 +215,27 @@ def send_message(chat, message_func, force):
 
     # Check if user has a custom time window for today
     if get_today_window_state(chat) and (checktime("hour") < get_today_window_start(chat) or checktime("hour") > get_today_window_end(chat)) and not force:
-        # Supress if Monday - Friday and not between 18 and 23
-        message = "Suppressed message for {} due to custom user setting for today".format(get_username(chat))
+        # suppress if Monday - Friday and not between 18 and 23
+        message = "suppressed message for {} due to custom user setting for today".format(get_username(chat))
         log(1, message)
 
-    # Check if user wants to supress notifications on workdays in general
-    # Supress if Monday - Friday and not between 18 and 23
-    elif get_supress_status(chat) and not get_today_window_state(chat) and not force:
-        message = "Suppressed message for {} due to Day or Time".format(get_username(chat))
-        log(1,message)
+    # Check if user wants to suppress notifications on workdays in general
+    # suppress if Monday - Friday and not between 18 and 23
+    elif get_suppress_status(chat) and not get_today_window_state(chat) and not force:
+        message = "suppressed message for {} due to Day or Time".format(get_username(chat))
+        log(1, message)
 
-    # Supress since user does not come online today
+    # suppress since user does not come online today
     elif get_day_status(chat) == "/not_today" and not force:
-        message = "Supressed message for {} due to day_status".format(get_username(chat))
-        log(1,message)
+        message = "suppressed message for {} due to day_status".format(get_username(chat))
+        log(1, message)
 
     # Some messages like bot replies to the user need to be forced
     else:
         try:
             # Send message
             message = "Send message to {}: {}".format(get_username(chat), message_func)
-            log(1,message)
+            log(1, message)
             requests.get("https://api.telegram.org/bot" + str(tgbot_token) + "/sendMessage?chat_id=" + str(chat) + "&text=" + str(message_func))
             return message_func
         except:
@@ -346,12 +346,12 @@ async def telegram_bridge():
             member_list = []
 
             # Announce if someone is online and it turns 18 o'clock
-            # Announce only to user that supressed the messages before
+            # Announce only to user that suppressed the messages before
             if members and not bot_restarted:
                 if not intraday_announced:
                     if checktime("hour") == 18:
                         # Log Action
-                        log(2,"Will announce online members to prior supressed users.")
+                        log(2, "Will announce online members to prior suppressed users.")
                         # Put user into a list
                         for member in members:
                             member_list.append(member.name)
@@ -359,16 +359,16 @@ async def telegram_bridge():
                         for chat in get_enabled_users():
                             # Check that the user is not online
                             if is_user_in_channel(chat, main_channel_id) == False:
-                                # User with supress enabled getting notified
-                                if get_supress_config(chat):
+                                # User with suppress enabled getting notified
+                                if get_suppress_config(chat):
                                     message = "Im Discord: {} \nMessage: /on_the_way  /later  /not_today".format(member_list)
                                     send_message(chat, message, False)
-                                # User was not supressed
+                                # User was not suppressed
                                 else:
-                                    log(2,"{} was not supressed and does not need to be notified!".format(get_discord_username(chat)))
+                                    log(2, "{} was not suppressed and does not need to be notified!".format(get_discord_username(chat)))
                             # User is online
                             else:
-                                log(2,"{} is online and does not need to be notified!".format(get_discord_username(chat)))
+                                log(2, "{} is online and does not need to be notified!".format(get_discord_username(chat)))
                         intraday_announced = True
 
             # Check if someone joined or left
@@ -378,7 +378,7 @@ async def telegram_bridge():
                     member_list.append(member.name)
 
                 # Verbose for cli
-                log(2,"Now online: " + str(member_list))
+                log(2, "Now online: " + str(member_list))
 
                 # Check if the new member list is longer (char wise due to laziness)
                 # We only want to announce ppl that come into the channel
@@ -395,7 +395,7 @@ async def telegram_bridge():
                                 last_announce = message
                             # If user is online he does not need to be notified
                             else:
-                                log(2,"{} is online and does not need to be notified!".format(get_discord_username(chat)))
+                                log(2, "{} is online and does not need to be notified!".format(get_discord_username(chat)))
 
                 # Check if the last one left the channel
                 elif not member_list:
@@ -408,7 +408,7 @@ async def telegram_bridge():
                                 send_message(chat, message, False)
                                 last_announce = "Empty"
                             else:
-                                log(2,"The User was online right now or does not want to be notified!")
+                                log(2, "The User was online right now or does not want to be notified!")
 
             # Update the variables for next loop
             members_old = members
@@ -431,7 +431,7 @@ async def telegram_bridge():
 
             # Check messages if exists
             if message_amount != 0:
-                # Suppress old actions if bot restarted
+                # suppress old actions if bot restarted
                 if bot_restarted:
                     bot_restarted = False
                 else:
@@ -443,14 +443,14 @@ async def telegram_bridge():
                             # Get the message
                             bot_messages_text_single = str(
                                 bot_messages_json["result"][message_counter]["message"]["text"])
-                            log(2,bot_messages_json)
+                            log(2, bot_messages_json)
 
                             # Check who wrote the message
                             check_user = str(bot_messages_json["result"][message_counter]["message"]["from"]["id"])
                             check_user_name = str(bot_messages_json["result"][message_counter]["message"]["from"]["first_name"])
 
                             # Log the message
-                            log(1,"New Message from {}: {}".format(get_username(check_user), bot_messages_text_single))
+                            log(1, "New Message from {}: {}".format(get_username(check_user), bot_messages_text_single))
 
                             # Create new user if unknown
                             if get_username(check_user) == check_user:
@@ -458,12 +458,12 @@ async def telegram_bridge():
                                 sqlquery = "INSERT INTO users (telegram_id, user_name) VALUES (\"{}\",\"{}\")".format(check_user, check_user_name)
                                 cursor.execute(sqlquery)
                                 db.commit()
-                                log(2,"Created new User")
+                                log(2, "Created new User")
                                 # Welcome the new User
                                 message = "Hello {}, seems you are new here. Welcome!\nYou can use the commands /enable " \
                                           "or /disable and /who_is_online - Just try!\n" \
                                           "You should set your Discord Username with [ /set_discord_username YOUR-USERNAME ]\n" \
-                                          "You can also supress notifications on workdays between 18 and 23 o'clock with /toggle_workday_notifications\n" \
+                                          "You can also suppress notifications on workdays between 18 and 23 o'clock with /toggle_workday_notifications\n" \
                                           "And if you dont want to get notifications if the last user left the Discord use " \
                                           "/toggle_leave_notifications".format(check_user_name)
                                 send_message(check_user, message, True)
@@ -501,16 +501,16 @@ async def telegram_bridge():
                             # The user wants to toggle workday notifications
                             if splitted[0] == "/toggle_workday_notifications":
                                 # Toggle setting
-                                if get_supress_status(check_user) == "True":
+                                if get_suppress_status(check_user) == "True":
                                     message = "You will get notification all day long!"
                                     # Update Database
-                                    sqlquery = "UPDATE users SET supress = 'False' WHERE telegram_id = " + str(check_user)
+                                    sqlquery = "UPDATE users SET suppress = 'False' WHERE telegram_id = " + str(check_user)
                                     cursor.execute(sqlquery)
                                     db.commit()
                                 else:
                                     message = "You will get notification on weekends and on workdays between 18-23 o'clock!"
                                     # Update Database
-                                    sqlquery = "UPDATE users SET supress = 'True' WHERE telegram_id = " + str(check_user)
+                                    sqlquery = "UPDATE users SET suppress = 'True' WHERE telegram_id = " + str(check_user)
                                     cursor.execute(sqlquery)
                                     db.commit()
                                 # Inform the user about toggle
@@ -649,7 +649,7 @@ async def telegram_bridge():
 
                         # Discard all other messages
                         except KeyError:
-                            log(2,"Another type of message received")
+                            log(2, "Another type of message received")
 
                 # Set new offset to acknowledge messages on the telegram api
                 offset = str(bot_messages_json["result"][message_amount - 1]["update_id"] + 1)
@@ -660,7 +660,7 @@ async def telegram_bridge():
         # Chatch errors and log them to database
         except Exception as error:
             print(str(error))
-            log(5,"Exception: {}".format(error))
+            log(5, "Exception: {}".format(error))
 
         # Reset variables
         chat_list = []
@@ -674,7 +674,7 @@ client.loop.create_task(telegram_bridge())
 # Start the actual bot
 client.run(discord_token)
 
-if (db.is_connected()):
+if db.is_connected():
     db.close()
     cursor.close()
     print("MySQL connection is closed")
