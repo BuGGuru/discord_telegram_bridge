@@ -77,7 +77,7 @@ def get_enabled_users():
     for row in records:
         chat_list.append(row[1])
         chat_list_user_names.append(row[2])
-    log(2, "Enabled users: " + str(chat_list_user_names))
+    log(3, "Enabled users: " + str(chat_list_user_names))
     return chat_list
 
 # Checks if a given user wants to get the message that the last one left discord.
