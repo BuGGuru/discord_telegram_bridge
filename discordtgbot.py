@@ -22,13 +22,12 @@ dbpass = config.get("Database", "dbpass")
 
 # Variables to work with
 members_old = ""
+members_afk_old = ""
 bot_restarted = True
 last_announce = ""
 offset = "-0"
 logs = []
 last_log = 0
-chat_list = []
-chat_list_user_names = []
 intraday_announced = False
 
 # Get the Database running
@@ -64,6 +63,12 @@ cursor.execute(sqlquery)
 records = cursor.fetchone()
 main_channel_id = int(records[0])
 
+# Get afk discord channels from database
+sqlquery = "select room_id from discord_channel where afk = 'True'"
+cursor.execute(sqlquery)
+records = cursor.fetchone()
+afk_channel_id = int(records[0])
+
 ####################
 # Database methods #
 ####################
@@ -71,14 +76,25 @@ main_channel_id = int(records[0])
 # Get the users with enabled notifications
 # Returns a list with telegram chat IDs
 def get_enabled_users():
-    sqlquery = "select * from users where enabled = 'True'"
-    cursor.execute(sqlquery)
-    records = cursor.fetchall()
-    for row in records:
-        chat_list.append(row[1])
-        chat_list_user_names.append(row[2])
-    log(3, "Enabled users: " + str(chat_list_user_names))
-    return chat_list
+    try:
+        chat_list = []
+        chat_list_user_names = []
+
+        # Get enabled users from database
+        sqlquery = "select * from users where enabled = 'True'"
+        cursor.execute(sqlquery)
+        records = cursor.fetchall()
+
+        # Put them into a list
+        for row in records:
+            chat_list.append(row[1])
+            chat_list_user_names.append(row[2])
+
+        # Log and return the list
+        log(3, "Enabled users: " + str(chat_list_user_names))
+        return chat_list
+    except:
+        return False
 
 # Checks if a given user wants to get the message that the last one left discord.
 # Returns True or False
@@ -173,7 +189,6 @@ def get_day_status(telegram_id_func):
         # Return False if not set
         return False
 
-
 def get_today_window_state(telegram_id_func):
     try:
         # Get database entry for user
@@ -262,13 +277,26 @@ def send_message(chat, message_func, force):
 # Also checks the day_status of the users
 # Returns a message with optional day status
 def get_online_status(channel, status):
+    # Main channel
     voice_channel = client.get_channel(channel)
     members = voice_channel.members
     member_list = []
     for member in members:
         member_list.append(member.name)
-    if member_list:
-        message = "Online right now: {}".format(member_list)
+
+    # AFK channel
+    voice_channel_afk = client.get_channel(afk_channel_id)
+    members_afk = voice_channel_afk.members
+    member_afk_list = []
+    for member_afk in members_afk:
+        member_afk_list.append(member_afk.name)
+
+    # Construct Message
+    if member_list or member_afk_list:
+        message = "Online: {}".format(member_list)
+        if member_afk_list:
+            message = message + "\nAFK: {}".format(member_afk_list)
+
     else:
         message = "Nobody is online, you are on your own!"
 
@@ -278,6 +306,7 @@ def get_online_status(channel, status):
             if user_day_status and (get_discord_username(user) not in member_list):
                 message = message + "\n" + get_username(user) + "'s Status: " + user_day_status
 
+    message = message + "\nMessage: /on_my_way  /later  /not_today"
     return message
 
 # Checks if a given user is online
@@ -336,9 +365,8 @@ if checktime("hour") > 17:
 
 async def telegram_bridge():
     global offset
-    global chat_list
-    global chat_list_user_names
     global members_old
+    global members_afk_old
     global bot_restarted
     global last_announce
     global cursor
@@ -356,13 +384,19 @@ async def telegram_bridge():
                 log(5, "Reconnected to Database")
 
             # Variables for the bot
+            # Main channel
             voice_channel = client.get_channel(main_channel_id)
             members = voice_channel.members
             member_list = []
 
+            # AFK channel
+            voice_channel_afk = client.get_channel(afk_channel_id)
+            members_afk = voice_channel_afk.members
+            member_list_afk = []
+
             # Announce if someone is online and it turns 18 o'clock
             # Announce only to user that suppressed the messages before
-            if members and not bot_restarted:
+            if members or members_afk and not bot_restarted:
                 if not intraday_announced:
                     if checktime("hour") == 18:
                         # Log Action
@@ -370,13 +404,18 @@ async def telegram_bridge():
                         # Put user into a list
                         for member in members:
                             member_list.append(member.name)
+
+                        # Put AFK user into a list
+                        for member_afk in members_afk:
+                            member_list_afk.append(member_afk.name)
+
                         # Message users
                         for chat in get_enabled_users():
                             # Check that the user is not online
-                            if is_user_in_channel(chat, main_channel_id) == False:
+                            if not is_user_in_channel(chat, main_channel_id):
                                 # User with suppress enabled getting notified
                                 if get_suppress_config(chat):
-                                    message = "Im Discord: {} \nMessage: /on_the_way  /later  /not_today".format(member_list)
+                                    message = get_online_status(main_channel_id, True)
                                     send_message(chat, message, False)
                                 # User was not suppressed
                                 else:
@@ -387,25 +426,30 @@ async def telegram_bridge():
                         intraday_announced = True
 
             # Check if someone joined or left
-            if members != members_old:
+            if members != members_old or members_afk != members_afk_old:
                 # Put them into a list
                 for member in members:
                     member_list.append(member.name)
 
+                # Put AFK user into a list
+                for member_afk in members_afk:
+                    member_list_afk.append(member_afk.name)
+
                 # Verbose for cli
                 log(2, "Now online: " + str(member_list))
+                log(2, "Now AFK: " + str(member_list_afk))
 
                 # Check if the new member list is longer (char wise due to laziness)
                 # We only want to announce ppl that come into the channel
                 # Not if they leave
-                if len(member_list) > len(members_old):
+                if len(member_list) + len(member_list_afk) > len(members_old) + len(members_afk_old):
                     # Only announce to chat if the bot did not restart
                     if not bot_restarted:
                         # Check who wants to get messages
                         for chat in get_enabled_users():
                             # Check if user is online
-                            if is_user_in_channel(chat, main_channel_id) == False:
-                                message = "Im Discord: {} \nMessage: /on_the_way  /later  /not_today".format(member_list)
+                            if not is_user_in_channel(chat, main_channel_id):
+                                message = get_online_status(main_channel_id, True)
                                 send_message(chat, message, False)
                                 last_announce = message
                             # If user is online he does not need to be notified
@@ -413,7 +457,7 @@ async def telegram_bridge():
                                 log(2, "{} is online and does not need to be notified!".format(get_discord_username(chat)))
 
                 # Check if the last one left the channel
-                elif not member_list:
+                elif not member_list and not member_list_afk:
                     message = "Discord: Der letzte ist gegangen!"
                     # Only announce to chat if the bot did not restart
                     if not bot_restarted:
@@ -427,6 +471,7 @@ async def telegram_bridge():
 
             # Update the variables for next loop
             members_old = members
+            members_afk_old = members_afk
             if bot_restarted:
                 last_announce = "Im Discord: " + str(member_list)
                 bot_restarted = False
@@ -593,7 +638,7 @@ async def telegram_bridge():
                                     send_message(check_user, message, True)
 
                             # User wants to broadcast a message
-                            if splitted[0] == "/on_the_way" or splitted[0] == "/later" or splitted[0] == "/not_today":
+                            if splitted[0] == "/on_my_way" or splitted[0] == "/later" or splitted[0] == "/not_today":
                                 # Confirm to the user
                                 message = "Send message to the other fools!"
                                 send_message(check_user, message, True)
@@ -611,7 +656,7 @@ async def telegram_bridge():
                                 for notify_user in get_enabled_users():
                                     notify_user_username = get_username(notify_user)
                                     if not reply_person_username == notify_user_username:
-                                        if splitted[0] == "/on_the_way":
+                                        if splitted[0] == "/on_my_way":
                                             message = "Message from {}: On the Way!".format(reply_person_username)
                                             send_message(notify_user, message, False)
                                         if splitted[0] == "/later":
@@ -705,14 +750,12 @@ async def telegram_bridge():
             # Sleep some seconds
             await asyncio.sleep(5)
 
-        # Chatch errors and log them to database
+        # Catch errors and log them to database
         except Exception as error:
             print(str(error))
             log(5, "Exception: {}".format(error))
 
         # Reset variables
-        chat_list = []
-        chat_list_user_names = []
         if checktime("hour") == 1:
             intraday_announced = False
 
