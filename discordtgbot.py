@@ -12,7 +12,7 @@ client = discord.Client()
 # Configs #
 ###########
 
-## Get database config
+# Get database config
 config = configparser.RawConfigParser()
 config.read("./database.ini")
 dbhost = config.get("Database", "dbhost")
@@ -396,33 +396,35 @@ async def telegram_bridge():
 
             # Announce if someone is online and it turns 18 o'clock
             # Announce only to user that suppressed the messages before
-            if members or members_afk and not bot_restarted:
-                if not intraday_announced:
-                    if checktime("hour") == 18:
-                        # Log Action
-                        log(2, "Will announce online members to prior suppressed users.")
-                        # Put user into a list
-                        for member in members:
-                            member_list.append(member.name)
+            if not intraday_announced:
+                if checktime("hour") == 18:
+                    if members or members_afk and not bot_restarted:
+                            # Log Action
+                            log(2, "Will announce online members to prior suppressed users.")
+                            # Put user into a list
+                            for member in members:
+                                member_list.append(member.name)
 
-                        # Put AFK user into a list
-                        for member_afk in members_afk:
-                            member_list_afk.append(member_afk.name)
+                            # Put AFK user into a list
+                            for member_afk in members_afk:
+                                member_list_afk.append(member_afk.name)
 
-                        # Message users
-                        for chat in get_enabled_users():
-                            # Check that the user is not online
-                            if not is_user_in_channel(chat, main_channel_id):
-                                # User with suppress enabled getting notified
-                                if get_suppress_config(chat):
-                                    message = get_online_status(main_channel_id, True)
-                                    send_message(chat, message, False)
-                                # User was not suppressed
+                            # Message users
+                            for chat in get_enabled_users():
+                                # Check that the user is not online
+                                if not is_user_in_channel(chat, main_channel_id):
+                                    # User with suppress enabled getting notified
+                                    if get_suppress_config(chat):
+                                        message = get_online_status(main_channel_id, True)
+                                        send_message(chat, message, False)
+                                    # User was not suppressed
+                                    else:
+                                        log(2, "{} was not suppressed and does not need to be notified!".format(get_discord_username(chat)))
+                                # User is online
                                 else:
-                                    log(2, "{} was not suppressed and does not need to be notified!".format(get_discord_username(chat)))
-                            # User is online
-                            else:
-                                log(2, "{} is online and does not need to be notified!".format(get_discord_username(chat)))
+                                    log(2, "{} is online and does not need to be notified!".format(get_discord_username(chat)))
+                            intraday_announced = True
+                    else:
                         intraday_announced = True
 
             # Check if someone joined or left
