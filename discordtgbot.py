@@ -641,7 +641,7 @@ async def telegram_bridge():
                                     send_message(check_user, message, True)
 
                             # User wants to broadcast a message
-                            if splitted[0] == "/on_my_way" or splitted[0] == "/later" or splitted[0] == "/not_today":
+                            if splitted[0] == "/on_my_way" or splitted[0] == "/later" or splitted[0] == "/not_today" or splitted[0].lower() == "/notsurebutitry":
                                 # Confirm to the user
                                 message = "Send message to the other fools!"
                                 send_message(check_user, message, True)
@@ -667,6 +667,9 @@ async def telegram_bridge():
                                             send_message(notify_user, message, False)
                                         if splitted[0] == "/not_today":
                                             message = "Message from {}: Not today!".format(reply_person_username)
+                                            send_message(notify_user, message, False)
+                                        if splitted[0].lower() == "/notsurebutitry":
+                                            message = "Message from {}: Not sure but i try!".format(reply_person_username)
                                             send_message(notify_user, message, False)
 
                             # User wants to set a time window for messages
