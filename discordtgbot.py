@@ -5,8 +5,7 @@ import mysql.connector
 import time
 from datetime import datetime
 import configparser
-
-client = discord.Client()
+import discordstats
 
 ###########
 # Configs #
@@ -355,6 +354,8 @@ def checktime(asked):
 ############
 # Main Bot #
 ############
+
+client = discord.Client()
 
 # Log bot restart
 log(5, "The bot restarted!")
@@ -738,6 +739,12 @@ async def telegram_bridge():
                                     message = "Please use [ /set_verbosity level ]\n" \
                                               "Level can be: 0-9"
                                     send_message(check_user, message, True)
+
+                            # The user wants to get the stats
+                            if splitted[0] == "/show_stats":
+                                # Tell the user the stats
+                                message = discordstats.get_stats(db)
+                                send_message(check_user, message, True)
 
                             # Update the message counter
                             message_counter = message_counter + 1
