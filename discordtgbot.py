@@ -305,7 +305,7 @@ def get_online_status(channel, status):
             if user_day_status and (get_discord_username(user) not in member_list):
                 message = message + "\n" + get_username(user) + "'s Status: " + user_day_status
 
-    message = message + "\nMessage: /on_my_way  /later  /not_today"
+    message = message + "\nMessage: /on_my_way  /later  /not_today  /notsurebutitry"
     return message
 
 # Checks if a given user is online
