@@ -564,7 +564,7 @@ async def telegram_bridge():
                             # The user wants to toggle workday notifications
                             if splitted[0] == "/toggle_workday_notifications":
                                 # Toggle setting
-                                if get_suppress_status(check_user) == "True":
+                                if get_suppress_status(check_user):
                                     message = "You will get notification all day long!"
                                     # Update Database
                                     sqlquery = "UPDATE users SET suppress = 'False' WHERE telegram_id = " + str(check_user)
