@@ -382,7 +382,7 @@ async def telegram_bridge():
         try:
             # Check if we have a connection to the database or try to reconnect
             if not db.is_connected():
-                cursor = db.cursor()
+                cursor = db.cursor(dictionary=True, buffered=True)
                 log(5, "Reconnected to Database")
 
             # Variables for the bot
@@ -631,7 +631,6 @@ async def telegram_bridge():
                                     new_discord_user_name = splitted[1]
                                     # Update Discord username in database
                                     sqlquery = "UPDATE users SET discord_username = '{}' WHERE telegram_id = '{}'".format(new_discord_user_name, check_user)
-                                    cursor = db.cursor()
                                     cursor.execute(sqlquery)
                                     db.commit()
                                     # Inform the user
@@ -648,7 +647,6 @@ async def telegram_bridge():
                                 send_message(check_user, message, True)
 
                                 # Write user status to database
-                                cursor = db.cursor()
                                 sqlquery = "UPDATE users SET day_status = '{}' WHERE telegram_id = '{}'".format(splitted[0], check_user)
                                 cursor.execute(sqlquery)
                                 sqlquery = "UPDATE users SET day_status_day = '{}' WHERE telegram_id = '{}'".format(checktime("day"), check_user)
@@ -689,7 +687,6 @@ async def telegram_bridge():
                                                    " ('{}', '{}', '{}', '{}') ON DUPLICATE KEY UPDATE start = '{}', end = '{}'"\
                                             .format(check_user, time_window_day, time_window_start, time_window_end, time_window_start, time_window_end)
 
-                                        cursor = db.cursor()
                                         cursor.execute(sqlquery)
                                         db.commit()
 
@@ -721,7 +718,6 @@ async def telegram_bridge():
                                     if new_verbosity_level < 10:
                                         # Update Database
                                         sqlquery = "UPDATE configs SET config_value = '{}' WHERE config_name = 'cli_verbosity'".format(new_verbosity_level)
-                                        cursor = db.cursor()
                                         cursor.execute(sqlquery)
                                         db.commit()
 
