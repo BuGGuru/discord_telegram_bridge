@@ -128,8 +128,8 @@ def get_discord_username(telegram_id_func):
         sqlquery = "select discord_username from users where telegram_id = {}".format(telegram_id_func)
         cursor.execute(sqlquery)
         records = cursor.fetchone()
-        if records["user_name"]:
-            return records["user_name"]
+        if records["discord_username"]:
+            return records["discord_username"]
         else:
             return telegram_id_func
     except:
