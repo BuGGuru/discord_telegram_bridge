@@ -34,7 +34,8 @@ db = mysql.connector.connect(host=dbhost,
                              database=database,
                              user=dbuser,
                              password=dbpass)
-cursor = db.cursor()
+
+cursor = db.cursor(dictionary=True, buffered=True)
 
 # Get configs from database
 
@@ -42,31 +43,31 @@ cursor = db.cursor()
 sqlquery = "SELECT config_value FROM configs WHERE config_name = 'discord_token'"
 cursor.execute(sqlquery)
 records = cursor.fetchone()
-discord_token = records[0]
+discord_token = records["config_value"]
 
 # Telegram token
 sqlquery = "SELECT config_value FROM configs WHERE config_name = 'telegram_token'"
 cursor.execute(sqlquery)
 records = cursor.fetchone()
-tgbot_token = records[0]
+tgbot_token = records["config_value"]
 
 # CLI verbosity
 sqlquery = "SELECT config_value FROM configs WHERE config_name = 'cli_verbosity'"
 cursor.execute(sqlquery)
 records = cursor.fetchone()
-cli_verbosity = int(records[0])
+cli_verbosity = int(records["config_value"])
 
 # Get main discord channels from database
 sqlquery = "select room_id from discord_channel where main = 'True'"
 cursor.execute(sqlquery)
 records = cursor.fetchone()
-main_channel_id = int(records[0])
+main_channel_id = int(records["room_id"])
 
 # Get afk discord channels from database
 sqlquery = "select room_id from discord_channel where afk = 'True'"
 cursor.execute(sqlquery)
 records = cursor.fetchone()
-afk_channel_id = int(records[0])
+afk_channel_id = int(records["room_id"])
 
 ####################
 # Database methods #
@@ -86,8 +87,8 @@ def get_enabled_users():
 
         # Put them into a list
         for row in records:
-            chat_list.append(row[1])
-            chat_list_user_names.append(row[2])
+            chat_list.append(row["telegram_id"])
+            chat_list_user_names.append(row["user_name"])
 
         # Log and return the list
         log(3, "Enabled users: " + str(chat_list_user_names))
@@ -102,7 +103,7 @@ def get_setting_leave_messages(telegram_id_func):
         sqlquery = "select leave_messages from users where telegram_id = {}".format(telegram_id_func)
         cursor.execute(sqlquery)
         records = cursor.fetchone()
-        if records[0] == "False":
+        if records["leave_message"] == "False":
             return False
         else:
             return True
@@ -116,7 +117,7 @@ def get_username(telegram_id_func):
         sqlquery = "select user_name from users where telegram_id = {}".format(telegram_id_func)
         cursor.execute(sqlquery)
         records = cursor.fetchone()
-        return records[0]
+        return records["user_name"]
     except:
         return telegram_id_func
 
@@ -127,8 +128,8 @@ def get_discord_username(telegram_id_func):
         sqlquery = "select discord_username from users where telegram_id = {}".format(telegram_id_func)
         cursor.execute(sqlquery)
         records = cursor.fetchone()
-        if records[0]:
-            return records[0]
+        if records["discord_username"]:
+            return records["discord_username"]
         else:
             return telegram_id_func
     except:
@@ -144,7 +145,7 @@ def get_suppress_status(telegram_id_func):
         records = cursor.fetchone()
 
         # If User wants to suppress check the time
-        if records[0] == "True" and checktime("day") < 5 and (checktime("hour") < 18 or checktime("hour") > 22):
+        if records["suppress"] == "True" and checktime("day") < 5 and (checktime("hour") < 18 or checktime("hour") > 22):
             # User wants to suppress and its out of the notification time
             return True
         else:
@@ -164,7 +165,7 @@ def get_suppress_config(telegram_id_func):
         records = cursor.fetchone()
 
         # If User wants to suppress check the time
-        if records[0] == "True":
+        if records["suppress"] == "True":
             # User wants to suppress
             return True
         else:
@@ -183,7 +184,7 @@ def get_day_status(telegram_id_func):
         cursor.execute(sqlquery)
         records = cursor.fetchone()
         # Return the day_status
-        return records[0]
+        return records["day_status"]
     except:
         # Return False if not set
         return False
@@ -195,7 +196,7 @@ def get_today_window_state(telegram_id_func):
         cursor.execute(sqlquery)
         records = cursor.fetchone()
         # Return the day_status
-        return records[0]
+        return records["telegram_id"]
     except:
         # Return False if not set
         return False
@@ -207,7 +208,7 @@ def get_today_window_start(telegram_id_func):
         cursor.execute(sqlquery)
         records = cursor.fetchone()
         # Return the day_status
-        return int(records[0])
+        return int(records["start"])
     except:
         # Return False if not set
         return False
@@ -219,7 +220,7 @@ def get_today_window_end(telegram_id_func):
         cursor.execute(sqlquery)
         records = cursor.fetchone()
         # Return the day_status
-        return int(records[0])
+        return int(records["end"])
     except:
         # Return False if not set
         return False
@@ -381,7 +382,7 @@ async def telegram_bridge():
         try:
             # Check if we have a connection to the database or try to reconnect
             if not db.is_connected():
-                cursor = db.cursor()
+                cursor = db.cursor(dictionary=True, buffered=True)
                 log(5, "Reconnected to Database")
 
             # Variables for the bot
@@ -630,7 +631,6 @@ async def telegram_bridge():
                                     new_discord_user_name = splitted[1]
                                     # Update Discord username in database
                                     sqlquery = "UPDATE users SET discord_username = '{}' WHERE telegram_id = '{}'".format(new_discord_user_name, check_user)
-                                    cursor = db.cursor()
                                     cursor.execute(sqlquery)
                                     db.commit()
                                     # Inform the user
@@ -647,7 +647,6 @@ async def telegram_bridge():
                                 send_message(check_user, message, True)
 
                                 # Write user status to database
-                                cursor = db.cursor()
                                 sqlquery = "UPDATE users SET day_status = '{}' WHERE telegram_id = '{}'".format(splitted[0], check_user)
                                 cursor.execute(sqlquery)
                                 sqlquery = "UPDATE users SET day_status_day = '{}' WHERE telegram_id = '{}'".format(checktime("day"), check_user)
@@ -688,7 +687,6 @@ async def telegram_bridge():
                                                    " ('{}', '{}', '{}', '{}') ON DUPLICATE KEY UPDATE start = '{}', end = '{}'"\
                                             .format(check_user, time_window_day, time_window_start, time_window_end, time_window_start, time_window_end)
 
-                                        cursor = db.cursor()
                                         cursor.execute(sqlquery)
                                         db.commit()
 
@@ -720,7 +718,6 @@ async def telegram_bridge():
                                     if new_verbosity_level < 10:
                                         # Update Database
                                         sqlquery = "UPDATE configs SET config_value = '{}' WHERE config_name = 'cli_verbosity'".format(new_verbosity_level)
-                                        cursor = db.cursor()
                                         cursor.execute(sqlquery)
                                         db.commit()
 
