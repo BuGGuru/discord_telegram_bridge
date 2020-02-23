@@ -20,14 +20,14 @@ dbuser = config.get("Database", "dbuser")
 dbpass = config.get("Database", "dbpass")
 
 # Variables to work with
+client = discord.Client()
 members_old = ""
-members_afk_old = ""
 bot_restarted = True
-last_announce = ""
 offset = "-0"
 logs = []
 last_log = 0
 intraday_announced = False
+user_list = []
 
 # Get the Database running
 db = mysql.connector.connect(host=dbhost,
@@ -62,12 +62,6 @@ sqlquery = "select room_id from discord_channel where main = 'True'"
 cursor.execute(sqlquery)
 records = cursor.fetchone()
 main_channel_id = int(records["room_id"])
-
-# Get afk discord channels from database
-sqlquery = "select room_id from discord_channel where afk = 'True'"
-cursor.execute(sqlquery)
-records = cursor.fetchone()
-afk_channel_id = int(records["room_id"])
 
 ####################
 # Database methods #
@@ -244,18 +238,18 @@ def send_message(chat, message_func, force):
     # Check if user has a custom time window for today
     if get_today_window_state(chat) and (checktime("hour") < get_today_window_start(chat) or checktime("hour") > get_today_window_end(chat)) and not force:
         # suppress if Monday - Friday and not between 18 and 23
-        message = "suppressed message for {} due to custom user setting for today".format(get_username(chat))
+        message = "Suppressed message for {} due to custom user setting for today".format(get_username(chat))
         log(1, message)
 
     # Check if user wants to suppress notifications on workdays in general
     # suppress if Monday - Friday and not between 18 and 23
     elif get_suppress_status(chat) and not get_today_window_state(chat) and not force:
-        message = "suppressed message for {} due to Day or Time".format(get_username(chat))
+        message = "Suppressed message for {} due to Day or Time".format(get_username(chat))
         log(1, message)
 
-    # suppress since user does not come online today
+    # suppress since user will not come online today
     elif get_day_status(chat) == "/not_today" and not force:
-        message = "suppressed message for {} due to day_status".format(get_username(chat))
+        message = "Suppressed message for {} due to day_status".format(get_username(chat))
         log(1, message)
 
     # Some messages like bot replies to the user need to be forced
@@ -276,7 +270,7 @@ def send_message(chat, message_func, force):
 # Checks who is online right now
 # Also checks the day_status of the users
 # Returns a message with optional day status
-def get_online_status(channel, status):
+def get_online_status(channel, status, simple):
     # Main channel
     voice_channel = client.get_channel(channel)
     members = voice_channel.members
@@ -284,21 +278,15 @@ def get_online_status(channel, status):
     for member in members:
         member_list.append(member.name)
 
-    # AFK channel
-    voice_channel_afk = client.get_channel(afk_channel_id)
-    members_afk = voice_channel_afk.members
-    member_afk_list = []
-    for member_afk in members_afk:
-        member_afk_list.append(member_afk.name)
-
     # Construct Message
-    if member_list or member_afk_list:
+    if member_list:
         message = "Online: {}".format(member_list)
-        if member_afk_list:
-            message = message + "\nAFK: {}".format(member_afk_list)
 
     else:
-        message = "Nobody is online, you are on your own!"
+        if simple:
+            message = "Online: {}".format(member_list)
+        else:
+            message = "Nobody is online, you are on your own!"
 
     if status:
         for user in get_enabled_users():
@@ -306,13 +294,15 @@ def get_online_status(channel, status):
             if user_day_status and (get_discord_username(user) not in member_list):
                 message = message + "\n" + get_username(user) + "'s Status: " + user_day_status
 
-    message = message + "\nMessage: /on_my_way  /later  /not_today  /notsurebutitry"
+    if not simple:
+        message = message + "\nMessage: /on_my_way  /later  /not_today  /notsurebutitry"
+
     return message
 
 # Checks if a given user is online
 # Returns True or False
 def is_user_in_channel(telegram_id_func, channel):
-    if get_discord_username(telegram_id_func) in get_online_status(channel, False):
+    if get_discord_username(telegram_id_func) in get_online_status(channel, False, True):
         return True
     else:
         return False
@@ -352,11 +342,33 @@ def checktime(asked):
         day = datetime.today().weekday()
         return int(day)
 
+##############
+# user class #
+##############
+
+class User:
+    def __init__(self, telegram_id, name, enabled):
+        self.telegram_id = telegram_id
+        self.name = name
+        self.is_enabled = enabled
+        self.is_online = False
+
+# Get enabled users from database
+sqlquery = "select * from users"
+cursor.execute(sqlquery)
+records = cursor.fetchall()
+
+# Create list of active users
+for user in records:
+    user_object = User(user["telegram_id"],
+                       user["user_name"],
+                       user["enabled"])
+
+    user_list.append(user_object)
+
 ############
 # Main Bot #
 ############
-
-client = discord.Client()
 
 # Log bot restart
 log(5, "The bot restarted!")
@@ -368,9 +380,7 @@ if checktime("hour") > 17:
 async def telegram_bridge():
     global offset
     global members_old
-    global members_afk_old
     global bot_restarted
-    global last_announce
     global cursor
     global intraday_announced
     global cli_verbosity
@@ -389,27 +399,53 @@ async def telegram_bridge():
             # Main channel
             voice_channel = client.get_channel(main_channel_id)
             members = voice_channel.members
-            member_list = []
 
-            # AFK channel
-            voice_channel_afk = client.get_channel(afk_channel_id)
-            members_afk = voice_channel_afk.members
-            member_list_afk = []
+            for member in members:
+                known_user = False
+                for user in user_list:
+                    if member.name == user.name:
+                        known_user = True
+                if not known_user:
+                    log(2, "Unknown user joined the channel: {}".format(member.name))
+                    new_user = User(None, member.name, False)
+                    user_list.append(new_user)
+
+            if bot_restarted:
+                # Verbose for cli
+                log(2, get_online_status(main_channel_id, True, True))
+
+            # Update user online status
+            for user in user_list:
+                if user.is_enabled and not user.is_online and is_user_in_channel(user.telegram_id, main_channel_id):
+                    user.is_online = True
+                    # Verbose for cli
+                    log(2, get_online_status(main_channel_id, True, True))
+                    # Send out message for new online user
+                    # Check if bot got restarted
+                    if not bot_restarted:
+                        # Check who wants to get messages
+                        for chat in get_enabled_users():
+                            # Check if user is online
+                            if not is_user_in_channel(chat, main_channel_id):
+                                message = get_online_status(main_channel_id, True, False)
+                                send_message(chat, message, False)
+                            # If user is online he does not need to be notified
+                            else:
+                                log(2, "{} is online and does not need to be notified!".format(get_discord_username(chat)))
+
+                elif user.is_online and not is_user_in_channel(user.telegram_id, main_channel_id):
+                    user.is_online = False
+                    log(2, "{} is now offline".format(user.name))
+                    # Verbose for cli
+                    log(2, get_online_status(main_channel_id, True, True))
 
             # Announce if someone is online and it turns 18 o'clock
             # Announce only to user that suppressed the messages before
             if not intraday_announced:
                 if checktime("hour") == 18:
-                    if members or members_afk and not bot_restarted:
+                    if not bot_restarted:
                             # Log Action
                             log(2, "Will announce online members to prior suppressed users.")
-                            # Put user into a list
-                            for member in members:
-                                member_list.append(member.name)
-
-                            # Put AFK user into a list
-                            for member_afk in members_afk:
-                                member_list_afk.append(member_afk.name)
 
                             # Message users
                             for chat in get_enabled_users():
@@ -417,7 +453,7 @@ async def telegram_bridge():
                                 if not is_user_in_channel(chat, main_channel_id):
                                     # User with suppress enabled getting notified
                                     if get_suppress_config(chat):
-                                        message = get_online_status(main_channel_id, True)
+                                        message = get_online_status(main_channel_id, True, False)
                                         send_message(chat, message, False)
                                     # User was not suppressed
                                     else:
@@ -429,55 +465,8 @@ async def telegram_bridge():
                     else:
                         intraday_announced = True
 
-            # Check if someone joined or left
-            if members != members_old or members_afk != members_afk_old:
-                # Put them into a list
-                for member in members:
-                    member_list.append(member.name)
-
-                # Put AFK user into a list
-                for member_afk in members_afk:
-                    member_list_afk.append(member_afk.name)
-
-                # Verbose for cli
-                log(2, "Now online: " + str(member_list))
-                log(2, "Now AFK: " + str(member_list_afk))
-
-                # Check if the new member list is longer (char wise due to laziness)
-                # We only want to announce ppl that come into the channel
-                # Not if they leave
-                if len(member_list) + len(member_list_afk) > len(members_old) + len(members_afk_old):
-                    # Only announce to chat if the bot did not restart
-                    if not bot_restarted:
-                        # Check who wants to get messages
-                        for chat in get_enabled_users():
-                            # Check if user is online
-                            if not is_user_in_channel(chat, main_channel_id):
-                                message = get_online_status(main_channel_id, True)
-                                send_message(chat, message, False)
-                                last_announce = message
-                            # If user is online he does not need to be notified
-                            else:
-                                log(2, "{} is online and does not need to be notified!".format(get_discord_username(chat)))
-
-                # Check if the last one left the channel
-                elif not member_list and not member_list_afk:
-                    message = "Discord: Der letzte ist gegangen!"
-                    # Only announce to chat if the bot did not restart
-                    if not bot_restarted:
-                        # Send message to the chat and remember
-                        for chat in get_enabled_users():
-                            if get_username(chat) not in last_announce and get_setting_leave_messages(chat) is True:
-                                send_message(chat, message, False)
-                                last_announce = "Empty"
-                            else:
-                                log(2, "The User was online right now or does not want to be notified!")
-
             # Update the variables for next loop
-            members_old = members
-            members_afk_old = members_afk
             if bot_restarted:
-                last_announce = "Im Discord: " + str(member_list)
                 bot_restarted = False
 
             ###################
@@ -559,7 +548,7 @@ async def telegram_bridge():
                             # The user wants to now who is online
                             if splitted[0] == "/who_is_online":
                                 # Tell the user who is online right now
-                                message = get_online_status(main_channel_id, True)
+                                message = get_online_status(main_channel_id, True, False)
                                 send_message(check_user, message, True)
 
                             # The user wants to toggle workday notifications
