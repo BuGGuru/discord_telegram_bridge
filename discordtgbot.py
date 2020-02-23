@@ -409,7 +409,7 @@ async def telegram_bridge():
                         known_user = True
                 if not known_user:
                     log(2, "Unknown user joined the channel: {}".format(member.name))
-                    new_user = User(None, member.name, False)
+                    new_user = User(None, member.name, False, member.name)
                     user_list.append(new_user)
 
             if bot_restarted:
