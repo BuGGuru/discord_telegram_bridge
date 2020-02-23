@@ -347,11 +347,12 @@ def checktime(asked):
 ##############
 
 class User:
-    def __init__(self, telegram_id, name, enabled):
+    def __init__(self, telegram_id, name, enabled, discord_username):
         self.telegram_id = telegram_id
         self.name = name
         self.is_enabled = enabled
         self.is_online = False
+        self.discord_username = discord_username
 
 # Get enabled users from database
 sqlquery = "select * from users"
@@ -362,7 +363,8 @@ records = cursor.fetchall()
 for user in records:
     user_object = User(user["telegram_id"],
                        user["user_name"],
-                       user["enabled"])
+                       user["enabled"],
+                       user["discord_username"])
 
     user_list.append(user_object)
 
