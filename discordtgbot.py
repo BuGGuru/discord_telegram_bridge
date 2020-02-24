@@ -28,6 +28,7 @@ logs = []
 last_log = 0
 intraday_announced = False
 user_list = []
+datetimeFormat = '%Y-%m-%d %H:%M:%S'
 
 # Get the Database running
 db = mysql.connector.connect(host=dbhost,
@@ -347,12 +348,13 @@ def checktime(asked):
 ##############
 
 class User:
-    def __init__(self, telegram_id, name, enabled, discord_username):
+    def __init__(self, telegram_id, name, enabled, discord_username, last_online_time):
         self.telegram_id = telegram_id
         self.name = name
         self.is_enabled = enabled
-        self.is_online = False
         self.discord_username = discord_username
+        self.is_online = False
+        self.last_online_time = last_online_time
 
 # Get enabled users from database
 sqlquery = "select * from users"
@@ -364,7 +366,8 @@ for user in records:
     user_object = User(user["telegram_id"],
                        user["user_name"],
                        user["enabled"],
-                       user["discord_username"])
+                       user["discord_username"],
+                       user["last_online_time"])
 
     user_list.append(user_object)
 
@@ -425,17 +428,32 @@ async def telegram_bridge():
                     # Send out message for new online user
                     # Check if bot got restarted
                     if not bot_restarted:
-                        # Check who wants to get messages
-                        for chat in get_enabled_users():
-                            # Check if user is online
-                            if not is_user_in_channel(chat, main_channel_id):
-                                message = get_online_status(main_channel_id, True, False)
-                                send_message(chat, message, False)
-                            # If user is online he does not need to be notified
-                            else:
-                                log(2, "{} is online and does not need to be notified!".format(get_discord_username(chat)))
+                        # Check if it is only a reconnect (under 15 minutes)
+                        if user.last_online_time:
+                            now = datetime.now().strftime(datetimeFormat)
+                            diff = datetime.strptime(now, datetimeFormat) - datetime.strptime(user.last_online_time, datetimeFormat)
+                        else:
+                            diff = False
+                        if not diff or diff.seconds > 60*15:
+                            # Check who wants to get messages
+                            for chat in get_enabled_users():
+                                # Check if user is online
+                                if not is_user_in_channel(chat, main_channel_id):
+                                    message = get_online_status(main_channel_id, True, False)
+                                    send_message(chat, message, False)
+                                # If user is online he does not need to be notified
+                                else:
+                                    log(2, "{} is online and does not need to be notified!".format(get_discord_username(chat)))
+                        else:
+                            log(2, "{} just reconnected after {}".format(user.discord_username, diff))
 
                 elif user.is_online and not is_user_in_channel(user.telegram_id, main_channel_id):
+                    # Set last online time to database
+                    user.last_online_time = datetime.now().strftime(datetimeFormat)
+                    sqlquery = "UPDATE users SET last_online_time = '{}' WHERE telegram_id = '{}'".format(user.last_online_time, user.telegram_id)
+                    cursor.execute(sqlquery)
+                    db.commit()
+
                     user.is_online = False
                     log(2, "{} is now offline".format(user.name))
                     # Verbose for cli
