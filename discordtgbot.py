@@ -350,13 +350,14 @@ def checktime(asked):
 ##############
 
 class User:
-    def __init__(self, telegram_id, name, enabled, discord_username, last_online_time):
+    def __init__(self, telegram_id, name, enabled, discord_username, last_online_time, discord_user_id):
         self.telegram_id = telegram_id
         self.name = name
         self.is_enabled = enabled
         self.discord_username = discord_username
         self.is_online = False
         self.last_online_time = last_online_time
+        self.discord_user_id = discord_user_id
 
 # Get enabled users from database
 sqlquery = "select * from users"
@@ -369,7 +370,8 @@ for user in records:
                        user["user_name"],
                        user["enabled"],
                        user["discord_username"],
-                       user["last_online_time"])
+                       user["last_online_time"],
+                       user["discord_user_id"])
 
     user_list.append(user_object)
 
@@ -403,25 +405,35 @@ async def telegram_bridge():
                 log(5, "Reconnected to Database")
 
             # Variables for the bot
-            # Main channel
+            # Get main channel from database
             voice_channel = client.get_channel(main_channel_id)
+
+            # Get list of user active in the discord channel
             members = voice_channel.members
 
+            # Check if this is a known user
             for member in members:
-                known_user = False
+                unknown_user = True
                 for user in user_list:
-                    if member.name == user.discord_username:
-                        known_user = True
-                if not known_user:
+                    if str(member.id) == str(user.discord_user_id):
+                        unknown_user = False
+                # Convert unknown user to known user
+                if unknown_user:
                     log(2, "Unknown user joined the channel: {}".format(member.name))
-                    new_user = User(None, member.name, False, member.name, datetime.now().strftime(datetimeFormat))
+                    new_user = User(None, member.name, False, member.name, datetime.now().strftime(datetimeFormat), member.id)
                     user_list.append(new_user)
+                    # Insert into the database
+                    # Insert new user to database
+                    sqlquery = "INSERT INTO users (user_name, discord_username, discord_user_id) VALUES (\"{}\",\"{}\",\"{}\")".format(member.name, member.name, member.id)
+                    cursor.execute(sqlquery)
+                    db.commit()
 
             if bot_restarted:
                 # Verbose for cli
                 log(2, get_online_status(main_channel_id, True, True))
 
             # Update user online status
+            # This only happens as the user connects to the channel
             for user in user_list:
                 if user.is_enabled and not user.is_online and is_user_in_channel(user.telegram_id, main_channel_id):
                     user.is_online = True
@@ -456,6 +468,7 @@ async def telegram_bridge():
                         else:
                             log(2, "{} just reconnected after {}".format(user.discord_username, diff))
 
+                # User disconnected from voice channel
                 elif user.is_online and not is_user_in_channel(user.telegram_id, main_channel_id):
                     # Set last online time to database
                     user.last_online_time = datetime.now().strftime(datetimeFormat)
@@ -484,7 +497,7 @@ async def telegram_bridge():
                                     if get_suppress_config(chat):
                                         message = get_online_status(main_channel_id, True, False)
                                         send_message(chat, message, False)
-                                    # User was not suppressed()
+                                    # User was not suppressed
                                     else:
                                         log(2, "{} was not suppressed and does not need to be notified!".format(get_discord_username(chat)))
                                 # User is online
@@ -545,9 +558,7 @@ async def telegram_bridge():
                                 message = "Hello {}, seems you are new here. Welcome!\nYou can use the commands /enable " \
                                           "or /disable and /who_is_online - Just try!\n" \
                                           "You should set your Discord Username with [ /set_discord_username YOUR-USERNAME ]\n" \
-                                          "You can also suppress notifications on workdays between 18 and 23 o'clock with /toggle_workday_notifications\n" \
-                                          "And if you dont want to get notifications if the last user left the Discord use " \
-                                          "/toggle_leave_notifications".format(check_user_name)
+                                          "You can also suppress notifications on workdays between 18 and 23 o'clock with /toggle_workday_notifications\n".format(check_user_name)
                                 send_message(check_user, message, True)
 
                             # Check for commands
@@ -781,6 +792,8 @@ async def telegram_bridge():
         except Exception as error:
             print(str(error))
             log(5, "Exception: {}".format(error))
+            print("Sleep 10 secs after error!")
+            time.sleep(10)
 
         # Reset variables
         if checktime("hour") == 1:
