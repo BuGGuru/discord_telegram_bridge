@@ -58,7 +58,7 @@ cursor.execute(sqlquery)
 records = cursor.fetchone()
 cli_verbosity = int(records["config_value"])
 
-# Get main discord channels from database
+# Get main discord channel from database
 sqlquery = "select room_id from discord_channel where main = 'True'"
 cursor.execute(sqlquery)
 records = cursor.fetchone()
@@ -310,6 +310,14 @@ def is_user_in_channel(telegram_id_func, channel):
     else:
         return False
 
+# Checks if a given user is online by discords user ID
+# Returns True or False
+def is_user_in_channel_by_discord_id(discord_user_id, discord_online_users):
+    for discord_online_user in discord_online_users:
+        if str(discord_user_id) == str(discord_online_user.id):
+            return True
+    return False
+
 ################
 # Misc methods #
 ################
@@ -417,6 +425,7 @@ async def telegram_bridge():
                 for user in user_list:
                     if str(member.id) == str(user.discord_user_id):
                         unknown_user = False
+                        break
                 # Convert unknown user to known user
                 if unknown_user:
                     log(2, "Unknown user joined the channel: {}".format(member.name))
@@ -435,7 +444,8 @@ async def telegram_bridge():
             # Update user online status
             # This only happens as the user connects to the channel
             for user in user_list:
-                if user.is_enabled and not user.is_online and is_user_in_channel(user.telegram_id, main_channel_id):
+                if not user.is_online and is_user_in_channel_by_discord_id(user.discord_user_id, members):
+                    # User just connected to the voice channel
                     user.is_online = True
 
                     # Verbose for cli
@@ -446,15 +456,24 @@ async def telegram_bridge():
                     cursor.execute(sqlquery)
                     db.commit()
 
+                    # Update discord_username if changed
+                    check_discord_username = client.get_user(int(user.discord_user_id))
+                    if user.discord_username != check_discord_username.name:
+                        user.discord_username = check_discord_username.name
+                        # Update in database
+                        sqlquery = "UPDATE users SET discord_username = '{}' WHERE discord_user_id = '{}'".format(
+                            user.discord_username, user.discord_user_id)
+                        cursor.execute(sqlquery)
+                        db.commit()
+
                     # Send out message for new online user
                     # Check if bot got restarted
                     if not bot_restarted:
                         # Check if it is only a reconnect (under 15 minutes)
+                        diff = False
                         if user.last_online_time:
                             now = datetime.now().strftime(datetimeFormat)
                             diff = datetime.strptime(now, datetimeFormat) - datetime.strptime(user.last_online_time, datetimeFormat)
-                        else:
-                            diff = False
                         if not diff or diff.seconds > 60*15:
                             # Check who wants to get messages
                             for chat in get_enabled_users():
@@ -469,7 +488,7 @@ async def telegram_bridge():
                             log(2, "{} just reconnected after {}".format(user.discord_username, diff))
 
                 # User disconnected from voice channel
-                elif user.is_online and not is_user_in_channel(user.telegram_id, main_channel_id):
+                elif user.is_online and not is_user_in_channel_by_discord_id(user.discord_user_id, members):
                     # Set last online time to database
                     user.last_online_time = datetime.now().strftime(datetimeFormat)
                     sqlquery = "UPDATE users SET last_online_time = '{}' WHERE telegram_id = '{}'".format(user.last_online_time, user.telegram_id)
