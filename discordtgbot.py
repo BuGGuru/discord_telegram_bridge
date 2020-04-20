@@ -496,7 +496,8 @@ async def telegram_bridge():
                                     # User with suppress enabled getting notified
                                     if get_suppress_config(chat):
                                         message = get_online_status(main_channel_id, True, False)
-                                        send_message(chat, message, False)
+                                        if message != "Nobody is online, you are on your own!":
+                                            send_message(chat, message, False)
                                     # User was not suppressed
                                     else:
                                         log(2, "{} was not suppressed and does not need to be notified!".format(get_discord_username(chat)))
