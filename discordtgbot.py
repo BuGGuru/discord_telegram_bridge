@@ -64,6 +64,12 @@ cursor.execute(sqlquery)
 records = cursor.fetchone()
 main_channel_id = int(records["room_id"])
 
+# Get discord chat channel from database
+sqlquery = "select room_id from discord_channel where chat = 'True'"
+cursor.execute(sqlquery)
+records = cursor.fetchone()
+chat_channel_id = int(records["room_id"])
+
 ####################
 # Database methods #
 ####################
@@ -415,11 +421,12 @@ async def telegram_bridge():
             # Variables for the bot
             # Get main channel from database
             voice_channel = client.get_channel(main_channel_id)
+            chat_channel = client.get_channel(chat_channel_id)
 
             # Get list of user active in the discord channel
             members = voice_channel.members
 
-            # Check if this is a known user
+            # Check if all connected user are known
             for member in members:
                 unknown_user = True
                 for user in user_list:
