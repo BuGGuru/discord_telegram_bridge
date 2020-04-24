@@ -681,9 +681,6 @@ async def telegram_bridge():
 
                             # User wants to broadcast a status
                             if splitted[0] == "/on_my_way" or splitted[0] == "/later" or splitted[0] == "/not_today" or splitted[0].lower() == "/notsurebutitry":
-                                # Confirm to the user
-                                message = "Send message to the other fools!"
-                                send_message(telegram_id, message, True)
 
                                 # Write user status to database
                                 sqlquery = "UPDATE users SET day_status = '{}' WHERE telegram_id = '{}'".format(splitted[0], telegram_id)
