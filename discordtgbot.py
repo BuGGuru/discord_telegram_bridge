@@ -254,10 +254,15 @@ def send_message(telegram_id, message_func, force):
 # Checks who is online right now
 # Also checks the day_status of the users
 # Returns a message with optional day status
-def get_online_status(channel, status, simple):
-    # Main channel
-    voice_channel = client.get_channel(channel)
-    members = voice_channel.members
+def get_online_status(active_channels, status, simple):
+
+    # Check all channels for members
+    members = []
+    for channel in active_channels:
+        voice_channel = client.get_channel(channel)
+        members = members + voice_channel.members
+
+    # Create member list
     member_list = []
     for member in members:
         member_list.append(member.name)
@@ -411,7 +416,7 @@ async def telegram_bridge():
 
             if bot_restarted:
                 # Verbose for cli
-                log(2, get_online_status(main_channel_id, True, True))
+                log(2, get_online_status(active_channels, True, True))
 
             # Update user online status
             # This only happens as the user connects to the channel
@@ -421,7 +426,7 @@ async def telegram_bridge():
                     user.is_online = True
 
                     # Verbose for cli
-                    log(2, get_online_status(main_channel_id, True, True))
+                    log(2, get_online_status(active_channels, True, True))
 
                     # Clear day_status
                     sqlquery = "UPDATE users SET day_status = 'None' WHERE telegram_id = '{}'".format(user.telegram_id)
@@ -450,7 +455,7 @@ async def telegram_bridge():
                             # Check who needs to get the message
                             for user in user_list:
                                 if user.is_enabled and not user.is_online:
-                                    message = get_online_status(main_channel_id, True, False)
+                                    message = get_online_status(active_channels, True, False)
                                     send_message(user.telegram_id, message, False)
                         else:
                             log(2, "{} just reconnected after {}".format(user.discord_username, diff))
@@ -466,7 +471,7 @@ async def telegram_bridge():
                     user.is_online = False
                     log(2, "{} is now offline".format(user.name))
                     # Verbose for cli
-                    log(2, get_online_status(main_channel_id, True, True))
+                    log(2, get_online_status(active_channels, True, True))
 
             # Announce if someone is online and it turns 18 o'clock
             # Announce only to user that suppressed the messages before
@@ -481,7 +486,7 @@ async def telegram_bridge():
                                 if user.is_enabled and not user.is_online:
                                     # User with suppress enabled getting notified
                                     if get_suppress_config(user.telegram_id):
-                                        message = get_online_status(main_channel_id, True, False)
+                                        message = get_online_status(active_channels, True, False)
                                         if "Nobody is online, you are on your own!" not in message:
                                             send_message(user.telegram_id, message, False)
                                     # User was not suppressed
@@ -580,7 +585,7 @@ async def telegram_bridge():
                             # The user wants to now who is online
                             if splitted[0] == "/who_is_online":
                                 # Tell the user who is online right now
-                                message = get_online_status(main_channel_id, True, False)
+                                message = get_online_status(active_channels, True, False)
                                 send_message(telegram_id, message, True)
 
                             # The user wants to toggle workday notifications
