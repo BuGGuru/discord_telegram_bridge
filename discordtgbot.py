@@ -21,7 +21,6 @@ dbpass = config.get("Database", "dbpass")
 
 # Variables to work with
 client = discord.Client()
-members_old = ""
 bot_restarted = True
 offset = "-0"
 logs = []
@@ -30,6 +29,7 @@ intraday_announced = False
 user_list = []
 datetimeFormat = '%Y-%m-%d %H:%M:%S'
 unpaired_user = []
+active_channels = []
 
 # Get the Database running
 db = mysql.connector.connect(host=dbhost,
@@ -70,6 +70,13 @@ sqlquery = "select room_id from discord_channel where chat = 'True'"
 cursor.execute(sqlquery)
 records = cursor.fetchone()
 chat_channel_id = int(records["room_id"])
+
+# Get active discord channels from database
+sqlquery = "select room_id from discord_channel where active = 'True'"
+cursor.execute(sqlquery)
+records = cursor.fetchall()
+for record in records:
+    active_channels.append(int(record["room_id"]))
 
 ####################
 # Database methods #
@@ -362,7 +369,6 @@ if checktime("hour") > 17:
 
 async def telegram_bridge():
     global offset
-    global members_old
     global bot_restarted
     global cursor
     global intraday_announced
@@ -379,12 +385,11 @@ async def telegram_bridge():
                 log(5, "Reconnected to Database")
 
             # Variables for the bot
-            # Get main channel from database
-            voice_channel = client.get_channel(main_channel_id)
-            chat_channel = client.get_channel(chat_channel_id)
-
-            # Get list of user active in the discord channel
-            members = voice_channel.members
+            # Get online member list for active channels
+            members = []
+            for channel in active_channels:
+                voice_channel = client.get_channel(channel)
+                members = members + voice_channel.members
 
             # Check if all connected user are known
             for member in members:
