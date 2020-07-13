@@ -627,7 +627,7 @@ async def telegram_bridge():
                                         send_message(user.telegram_id, message, True)
 
                             # User wants to set or change his Discord username
-                            if splitted[0] == "/connect_discord":
+                            if splitted[0] == "/pair_discord":
                                 # Check if a valid discord id or username was given
                                 try:
                                     discord_connect = splitted[1]
@@ -675,8 +675,8 @@ async def telegram_bridge():
                                             send_message(telegram_id, message, True)
 
                                 except IndexError:
-                                    message = "Please use [ /connect_discord YOUR-DISCORD-USERNAME ]\n" \
-                                              "Or use [ /connect_discord YOUR-DISCORD-ID ]"
+                                    message = "Please use [ /pair_discord YOUR-DISCORD-USERNAME ]\n" \
+                                              "Or use [ /pair_discord YOUR-DISCORD-ID ]"
                                     send_message(telegram_id, message, True)
 
                             # User wants to broadcast a status
