@@ -107,6 +107,12 @@ def get_username(telegram_id):
     else:
         return telegram_id
 
+# Returns the the force_message setting for a given user
+def get_setting_force_messages(telegram_id):
+    for user in user_list:
+        if user.telegram_id == telegram_id:
+            return user.force_messages
+
 # Checks if a user wants to suppress messages based on the current time
 # Returns True or False
 def get_suppress_status(telegram_id_func):
@@ -232,7 +238,7 @@ def send_message(telegram_id, message_func, force):
         log(1, message)
 
     # suppress since user will not come online today
-    elif get_day_status(telegram_id) == "/not_today" and not force:
+    elif get_day_status(telegram_id) == "/not_today" and not force and not get_setting_force_messages(telegram_id):
         message = "Suppressed message for {} due to day_status".format(get_username(telegram_id))
         log(1, message)
 
@@ -336,7 +342,7 @@ def checktime(asked):
 ##############
 
 class User:
-    def __init__(self, telegram_id, name, enabled, discord_username, last_online_time, discord_user_id):
+    def __init__(self, telegram_id, name, enabled, discord_username, last_online_time, discord_user_id, force_messages):
         self.telegram_id = telegram_id
         self.name = name
         self.is_enabled = enabled
@@ -344,6 +350,7 @@ class User:
         self.is_online = False
         self.last_online_time = last_online_time
         self.discord_user_id = discord_user_id
+        self.force_messages = force_messages
 
 # Get enabled users from database
 sqlquery = "select * from users"
@@ -357,7 +364,8 @@ for user in records:
                        user["enabled"],
                        user["discord_username"],
                        user["last_online_time"],
-                       user["discord_user_id"])
+                       user["discord_user_id"],
+                       user["force_messages"])
 
     user_list.append(user_object)
 
@@ -406,7 +414,7 @@ async def telegram_bridge():
                 # Convert unknown user to known user
                 if unknown_user:
                     log(2, "Unknown user joined the channel: {}".format(member.name))
-                    new_user = User(None, member.name, False, member.name, datetime.now().strftime(datetimeFormat), member.id)
+                    new_user = User(None, member.name, False, member.name, datetime.now().strftime(datetimeFormat), member.id, False)
                     user_list.append(new_user)
                     # Insert into the database
                     # Insert new user to database
@@ -621,6 +629,32 @@ async def telegram_bridge():
                                     sqlquery = "UPDATE users SET leave_messages = '1' WHERE telegram_id = " + str(telegram_id)
                                     cursor.execute(sqlquery)
                                     db.commit()
+                                # Inform the user about toggle
+                                send_message(telegram_id, message, True)
+
+                            # The user wants to toggle force notifications
+                            if splitted[0] == "/toggle_force_notifications":
+                                # Toggle setting
+                                if get_setting_force_messages(telegram_id):
+                                    message = "You will no longer get notifications if you set your status to /not_today"
+                                    # Update Database
+                                    sqlquery = "UPDATE users SET force_messages = '0' WHERE telegram_id = " + str(telegram_id)
+                                    cursor.execute(sqlquery)
+                                    db.commit()
+                                    # Update User-Object
+                                    for user in user_list:
+                                        if user.telegram_id == telegram_id:
+                                            user.force_messages = False
+                                else:
+                                    message = "You will now get notifications even if you set your status to /not_today"
+                                    # Update Database
+                                    sqlquery = "UPDATE users SET force_messages = '1' WHERE telegram_id = " + str(telegram_id)
+                                    cursor.execute(sqlquery)
+                                    db.commit()
+                                    # Update User-Object
+                                    for user in user_list:
+                                        if user.telegram_id == telegram_id:
+                                            user.force_messages = True
                                 # Inform the user about toggle
                                 send_message(telegram_id, message, True)
 
