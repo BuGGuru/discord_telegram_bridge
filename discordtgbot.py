@@ -397,6 +397,9 @@ async def telegram_bridge():
                 cursor = db.cursor(dictionary=True, buffered=True)
                 log(5, "Reconnected to Database")
 
+            # Prepare chat channel
+            chat_channel = client.get_channel(chat_channel_id)
+
             # Variables for the bot
             # Get online member list for active channels
             members = []
@@ -749,6 +752,8 @@ async def telegram_bridge():
                                         if splitted[0].lower() == "/notsurebutitry":
                                             message = "Message from {}: Not sure but i try!".format(reply_person_username)
                                             send_message(user.telegram_id, message, False)
+                                # Post status into the discord chat channel
+                                await chat_channel.send(message)
 
                             # User wants to set a time window for messages
                             if splitted[0] == "/set_time_window":
