@@ -680,7 +680,7 @@ async def telegram_bridge():
                                     discord_connect = splitted[1]
                                     user_found = False
                                     for user in user_list:
-                                        if str(discord_connect.lower()) == str(user.discord_username.lower()):
+                                        if discord_connect == user.discord_username:
                                             user.telegram_id = telegram_id
                                             # Update user in database
                                             sqlquery = "UPDATE users SET telegram_id = '{}' WHERE discord_username = '{}'".format(telegram_id, user.discord_username)
