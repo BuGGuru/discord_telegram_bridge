@@ -744,7 +744,7 @@ async def telegram_bridge():
                                             message = "Message from {}: On the Way!".format(reply_person_username)
                                             send_message(user.telegram_id, message, False)
                                         if splitted[0] == "/later":
-                                            message = "Message from {}: Will come on later today!".format(reply_person_username)
+                                            message = "Message from {}: Will be there today!".format(reply_person_username)
                                             send_message(user.telegram_id, message, False)
                                         if splitted[0] == "/not_today":
                                             message = "Message from {}: Not today!".format(reply_person_username)
