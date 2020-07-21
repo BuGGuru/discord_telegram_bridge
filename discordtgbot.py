@@ -729,31 +729,39 @@ async def telegram_bridge():
                             # User wants to broadcast a status
                             if splitted[0] == "/on_my_way" or splitted[0] == "/later" or splitted[0] == "/not_today" or splitted[0].lower() == "/notsurebutitry":
 
-                                # Write user status to database
-                                sqlquery = "UPDATE users SET day_status = '{}' WHERE telegram_id = '{}'".format(splitted[0], telegram_id)
-                                cursor.execute(sqlquery)
-                                sqlquery = "UPDATE users SET day_status_day = '{}' WHERE telegram_id = '{}'".format(date.today(), telegram_id)
-                                cursor.execute(sqlquery)
-                                db.commit()
-
-                                # Send the other guys a message
-                                reply_person_username = get_username(telegram_id)
+                                # Check if the user is already online
                                 for user in user_list:
-                                    if not reply_person_username == user.name and user.is_enabled:
-                                        if splitted[0] == "/on_my_way":
-                                            message = "Message from {}: On the Way!".format(reply_person_username)
-                                            send_message(user.telegram_id, message, False)
-                                        if splitted[0] == "/later":
-                                            message = "Message from {}: Will be there today!".format(reply_person_username)
-                                            send_message(user.telegram_id, message, False)
-                                        if splitted[0] == "/not_today":
-                                            message = "Message from {}: Not today!".format(reply_person_username)
-                                            send_message(user.telegram_id, message, False)
-                                        if splitted[0].lower() == "/notsurebutitry":
-                                            message = "Message from {}: Not sure but i try!".format(reply_person_username)
-                                            send_message(user.telegram_id, message, False)
-                                # Post status into the discord chat channel
-                                await chat_channel.send(message)
+                                    if telegram_id == user.telegram_id:
+                                        # Tell the user to stop trying to set a status if his status is online
+                                        if user.is_online:
+                                            message = "You are Online. Stop seeking so much attention!"
+                                            send_message(user.telegram_id, message, True)
+                                        else:
+                                            # Write user status to database
+                                            sqlquery = "UPDATE users SET day_status = '{}' WHERE telegram_id = '{}'".format(splitted[0], telegram_id)
+                                            cursor.execute(sqlquery)
+                                            sqlquery = "UPDATE users SET day_status_day = '{}' WHERE telegram_id = '{}'".format(date.today(), telegram_id)
+                                            cursor.execute(sqlquery)
+                                            db.commit()
+
+                                            # Send the other guys a message
+                                            reply_person_username = get_username(telegram_id)
+                                            for user in user_list:
+                                                if not reply_person_username == user.name and user.is_enabled:
+                                                    if splitted[0] == "/on_my_way":
+                                                        message = "Message from {}: On the Way!".format(reply_person_username)
+                                                        send_message(user.telegram_id, message, False)
+                                                    if splitted[0] == "/later":
+                                                        message = "Message from {}: Will be there today!".format(reply_person_username)
+                                                        send_message(user.telegram_id, message, False)
+                                                    if splitted[0] == "/not_today":
+                                                        message = "Message from {}: Not today!".format(reply_person_username)
+                                                        send_message(user.telegram_id, message, False)
+                                                    if splitted[0].lower() == "/notsurebutitry":
+                                                        message = "Message from {}: Not sure but i try!".format(reply_person_username)
+                                                        send_message(user.telegram_id, message, False)
+                                            # Post status into the discord chat channel
+                                            await chat_channel.send(message)
 
                             # User wants to set a time window for messages
                             if splitted[0] == "/set_time_window":
