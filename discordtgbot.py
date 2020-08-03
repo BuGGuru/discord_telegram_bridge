@@ -225,6 +225,12 @@ def get_messages(offset_func):
 # Send message to a chat
 def send_message(telegram_id, message_func, force):
 
+    # If user is online, force message
+    for user in user_list:
+        if telegram_id == user.telegram_id:
+            if user.is_online:
+                force = True
+
     # Check if user has a custom time window for today
     if get_today_window_state(telegram_id) and (checktime("hour") < get_today_window_start(telegram_id) or checktime("hour") > get_today_window_end(telegram_id)) and not force:
         # suppress if Monday - Friday and not between 18 and 23
