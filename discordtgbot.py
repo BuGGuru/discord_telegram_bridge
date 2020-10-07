@@ -21,7 +21,6 @@ dbpass = config.get("Database", "dbpass")
 
 # Variables to work with
 client = discord.Client()
-members_old = ""
 bot_restarted = True
 offset = "-0"
 logs = []
@@ -30,6 +29,7 @@ intraday_announced = False
 user_list = []
 datetimeFormat = '%Y-%m-%d %H:%M:%S'
 unpaired_user = []
+active_channels = []
 
 # Get the Database running
 db = mysql.connector.connect(host=dbhost,
@@ -71,6 +71,13 @@ cursor.execute(sqlquery)
 records = cursor.fetchone()
 chat_channel_id = int(records["room_id"])
 
+# Get active discord channels from database
+sqlquery = "select room_id from discord_channel where active = 'True'"
+cursor.execute(sqlquery)
+records = cursor.fetchall()
+for record in records:
+    active_channels.append(int(record["room_id"]))
+
 ####################
 # Database methods #
 ####################
@@ -99,6 +106,12 @@ def get_username(telegram_id):
             return user.name
     else:
         return telegram_id
+
+# Returns the the force_message setting for a given user
+def get_setting_force_messages(telegram_id):
+    for user in user_list:
+        if user.telegram_id == telegram_id:
+            return user.force_messages
 
 # Checks if a user wants to suppress messages based on the current time
 # Returns True or False
@@ -212,6 +225,12 @@ def get_messages(offset_func):
 # Send message to a chat
 def send_message(telegram_id, message_func, force):
 
+    # If user is online, force message
+    for user in user_list:
+        if telegram_id == user.telegram_id:
+            if user.is_online:
+                force = True
+
     # Check if user has a custom time window for today
     if get_today_window_state(telegram_id) and (checktime("hour") < get_today_window_start(telegram_id) or checktime("hour") > get_today_window_end(telegram_id)) and not force:
         # suppress if Monday - Friday and not between 18 and 23
@@ -225,7 +244,7 @@ def send_message(telegram_id, message_func, force):
         log(1, message)
 
     # suppress since user will not come online today
-    elif get_day_status(telegram_id) == "/not_today" and not force:
+    elif get_day_status(telegram_id) == "/not_today" and not force and not get_setting_force_messages(telegram_id):
         message = "Suppressed message for {} due to day_status".format(get_username(telegram_id))
         log(1, message)
 
@@ -247,10 +266,15 @@ def send_message(telegram_id, message_func, force):
 # Checks who is online right now
 # Also checks the day_status of the users
 # Returns a message with optional day status
-def get_online_status(channel, status, simple):
-    # Main channel
-    voice_channel = client.get_channel(channel)
-    members = voice_channel.members
+def get_online_status(active_channels, status, simple):
+
+    # Check all channels for members
+    members = []
+    for channel in active_channels:
+        voice_channel = client.get_channel(channel)
+        members = members + voice_channel.members
+
+    # Create member list
     member_list = []
     for member in members:
         member_list.append(member.name)
@@ -324,7 +348,7 @@ def checktime(asked):
 ##############
 
 class User:
-    def __init__(self, telegram_id, name, enabled, discord_username, last_online_time, discord_user_id):
+    def __init__(self, telegram_id, name, enabled, discord_username, last_online_time, discord_user_id, force_messages):
         self.telegram_id = telegram_id
         self.name = name
         self.is_enabled = enabled
@@ -332,6 +356,7 @@ class User:
         self.is_online = False
         self.last_online_time = last_online_time
         self.discord_user_id = discord_user_id
+        self.force_messages = force_messages
 
 # Get enabled users from database
 sqlquery = "select * from users"
@@ -345,7 +370,8 @@ for user in records:
                        user["enabled"],
                        user["discord_username"],
                        user["last_online_time"],
-                       user["discord_user_id"])
+                       user["discord_user_id"],
+                       user["force_messages"])
 
     user_list.append(user_object)
 
@@ -362,7 +388,6 @@ if checktime("hour") > 17:
 
 async def telegram_bridge():
     global offset
-    global members_old
     global bot_restarted
     global cursor
     global intraday_announced
@@ -378,13 +403,15 @@ async def telegram_bridge():
                 cursor = db.cursor(dictionary=True, buffered=True)
                 log(5, "Reconnected to Database")
 
-            # Variables for the bot
-            # Get main channel from database
-            voice_channel = client.get_channel(main_channel_id)
+            # Prepare chat channel
             chat_channel = client.get_channel(chat_channel_id)
 
-            # Get list of user active in the discord channel
-            members = voice_channel.members
+            # Variables for the bot
+            # Get online member list for active channels
+            members = []
+            for channel in active_channels:
+                voice_channel = client.get_channel(channel)
+                members = members + voice_channel.members
 
             # Check if all connected user are known
             for member in members:
@@ -396,7 +423,7 @@ async def telegram_bridge():
                 # Convert unknown user to known user
                 if unknown_user:
                     log(2, "Unknown user joined the channel: {}".format(member.name))
-                    new_user = User(None, member.name, False, member.name, datetime.now().strftime(datetimeFormat), member.id)
+                    new_user = User(None, member.name, False, member.name, datetime.now().strftime(datetimeFormat), member.id, False)
                     user_list.append(new_user)
                     # Insert into the database
                     # Insert new user to database
@@ -406,7 +433,7 @@ async def telegram_bridge():
 
             if bot_restarted:
                 # Verbose for cli
-                log(2, get_online_status(main_channel_id, True, True))
+                log(2, get_online_status(active_channels, True, True))
 
             # Update user online status
             # This only happens as the user connects to the channel
@@ -416,7 +443,7 @@ async def telegram_bridge():
                     user.is_online = True
 
                     # Verbose for cli
-                    log(2, get_online_status(main_channel_id, True, True))
+                    log(2, get_online_status(active_channels, True, True))
 
                     # Clear day_status
                     sqlquery = "UPDATE users SET day_status = 'None' WHERE telegram_id = '{}'".format(user.telegram_id)
@@ -445,7 +472,7 @@ async def telegram_bridge():
                             # Check who needs to get the message
                             for user in user_list:
                                 if user.is_enabled and not user.is_online:
-                                    message = get_online_status(main_channel_id, True, False)
+                                    message = get_online_status(active_channels, True, False)
                                     send_message(user.telegram_id, message, False)
                         else:
                             log(2, "{} just reconnected after {}".format(user.discord_username, diff))
@@ -461,7 +488,7 @@ async def telegram_bridge():
                     user.is_online = False
                     log(2, "{} is now offline".format(user.name))
                     # Verbose for cli
-                    log(2, get_online_status(main_channel_id, True, True))
+                    log(2, get_online_status(active_channels, True, True))
 
             # Announce if someone is online and it turns 18 o'clock
             # Announce only to user that suppressed the messages before
@@ -476,7 +503,7 @@ async def telegram_bridge():
                                 if user.is_enabled and not user.is_online:
                                     # User with suppress enabled getting notified
                                     if get_suppress_config(user.telegram_id):
-                                        message = get_online_status(main_channel_id, True, False)
+                                        message = get_online_status(active_channels, True, False)
                                         if "Nobody is online, you are on your own!" not in message:
                                             send_message(user.telegram_id, message, False)
                                     # User was not suppressed
@@ -575,7 +602,7 @@ async def telegram_bridge():
                             # The user wants to now who is online
                             if splitted[0] == "/who_is_online":
                                 # Tell the user who is online right now
-                                message = get_online_status(main_channel_id, True, False)
+                                message = get_online_status(active_channels, True, False)
                                 send_message(telegram_id, message, True)
 
                             # The user wants to toggle workday notifications
@@ -614,6 +641,32 @@ async def telegram_bridge():
                                 # Inform the user about toggle
                                 send_message(telegram_id, message, True)
 
+                            # The user wants to toggle force notifications
+                            if splitted[0] == "/toggle_force_notifications":
+                                # Toggle setting
+                                if get_setting_force_messages(telegram_id):
+                                    message = "You will no longer get notifications if you set your status to /not_today"
+                                    # Update Database
+                                    sqlquery = "UPDATE users SET force_messages = '0' WHERE telegram_id = " + str(telegram_id)
+                                    cursor.execute(sqlquery)
+                                    db.commit()
+                                    # Update User-Object
+                                    for user in user_list:
+                                        if user.telegram_id == telegram_id:
+                                            user.force_messages = False
+                                else:
+                                    message = "You will now get notifications even if you set your status to /not_today"
+                                    # Update Database
+                                    sqlquery = "UPDATE users SET force_messages = '1' WHERE telegram_id = " + str(telegram_id)
+                                    cursor.execute(sqlquery)
+                                    db.commit()
+                                    # Update User-Object
+                                    for user in user_list:
+                                        if user.telegram_id == telegram_id:
+                                            user.force_messages = True
+                                # Inform the user about toggle
+                                send_message(telegram_id, message, True)
+
                             # The user is lonely
                             if splitted[0] == "/Yes_i_am_lonely":
                                 # Tell the user that everything is alright and that help might come.
@@ -627,7 +680,7 @@ async def telegram_bridge():
                                         send_message(user.telegram_id, message, True)
 
                             # User wants to set or change his Discord username
-                            if splitted[0] == "/connect_discord":
+                            if splitted[0] == "/pair_discord":
                                 # Check if a valid discord id or username was given
                                 try:
                                     discord_connect = splitted[1]
@@ -675,36 +728,46 @@ async def telegram_bridge():
                                             send_message(telegram_id, message, True)
 
                                 except IndexError:
-                                    message = "Please use [ /connect_discord YOUR-DISCORD-USERNAME ]\n" \
-                                              "Or use [ /connect_discord YOUR-DISCORD-ID ]"
+                                    message = "Please use [ /pair_discord YOUR-DISCORD-USERNAME ]\n" \
+                                              "Or use [ /pair_discord YOUR-DISCORD-ID ]"
                                     send_message(telegram_id, message, True)
 
                             # User wants to broadcast a status
                             if splitted[0] == "/on_my_way" or splitted[0] == "/later" or splitted[0] == "/not_today" or splitted[0].lower() == "/notsurebutitry":
 
-                                # Write user status to database
-                                sqlquery = "UPDATE users SET day_status = '{}' WHERE telegram_id = '{}'".format(splitted[0], telegram_id)
-                                cursor.execute(sqlquery)
-                                sqlquery = "UPDATE users SET day_status_day = '{}' WHERE telegram_id = '{}'".format(date.today(), telegram_id)
-                                cursor.execute(sqlquery)
-                                db.commit()
-
-                                # Send the other guys a message
-                                reply_person_username = get_username(telegram_id)
+                                # Check if the user is already online
                                 for user in user_list:
-                                    if not reply_person_username == user.name and user.is_enabled:
-                                        if splitted[0] == "/on_my_way":
-                                            message = "Message from {}: On the Way!".format(reply_person_username)
-                                            send_message(user.telegram_id, message, False)
-                                        if splitted[0] == "/later":
-                                            message = "Message from {}: Will come on later today!".format(reply_person_username)
-                                            send_message(user.telegram_id, message, False)
-                                        if splitted[0] == "/not_today":
-                                            message = "Message from {}: Not today!".format(reply_person_username)
-                                            send_message(user.telegram_id, message, False)
-                                        if splitted[0].lower() == "/notsurebutitry":
-                                            message = "Message from {}: Not sure but i try!".format(reply_person_username)
-                                            send_message(user.telegram_id, message, False)
+                                    if telegram_id == user.telegram_id:
+                                        # Tell the user to stop trying to set a status if his status is online
+                                        if user.is_online:
+                                            message = "You are Online. Stop seeking so much attention!"
+                                            send_message(user.telegram_id, message, True)
+                                        else:
+                                            # Write user status to database
+                                            sqlquery = "UPDATE users SET day_status = '{}' WHERE telegram_id = '{}'".format(splitted[0], telegram_id)
+                                            cursor.execute(sqlquery)
+                                            sqlquery = "UPDATE users SET day_status_day = '{}' WHERE telegram_id = '{}'".format(date.today(), telegram_id)
+                                            cursor.execute(sqlquery)
+                                            db.commit()
+
+                                            # Send the other guys a message
+                                            reply_person_username = get_username(telegram_id)
+                                            for user in user_list:
+                                                if not reply_person_username == user.name and user.is_enabled:
+                                                    if splitted[0] == "/on_my_way":
+                                                        message = "Message from {}: On the Way!".format(reply_person_username)
+                                                        send_message(user.telegram_id, message, False)
+                                                    if splitted[0] == "/later":
+                                                        message = "Message from {}: Will be there today!".format(reply_person_username)
+                                                        send_message(user.telegram_id, message, False)
+                                                    if splitted[0] == "/not_today":
+                                                        message = "Message from {}: Not today!".format(reply_person_username)
+                                                        send_message(user.telegram_id, message, False)
+                                                    if splitted[0].lower() == "/notsurebutitry":
+                                                        message = "Message from {}: Not sure but i try!".format(reply_person_username)
+                                                        send_message(user.telegram_id, message, False)
+                                            # Post status into the discord chat channel
+                                            await chat_channel.send(message)
 
                             # User wants to set a time window for messages
                             if splitted[0] == "/set_time_window":
