@@ -325,10 +325,13 @@ def log(verbosity, output):
             print(str(output))
             last_log = time.time()
 
-    # Write into Database
-    sqlquery = "INSERT INTO messages (message_text, verbosity) VALUES (\"{}\", \"{}\")".format(output, verbosity)
-    cursor.execute(sqlquery)
-    db.commit()
+    try:
+        # Write into Database
+        sqlquery = "INSERT INTO messages (message_text, verbosity) VALUES (\"{}\", \"{}\")".format(output, verbosity)
+        cursor.execute(sqlquery)
+        db.commit()
+    except Exception as error:
+        print("Error logging to Database")
 
 # Looks up the current Day or Hour
 # Hours: 0-23 or Days: 0-7 (Monday-Sunday)
@@ -843,6 +846,18 @@ async def telegram_bridge():
                                 # Tell the user the stats
                                 message = discordstats.get_stats(db)
                                 send_message(telegram_id, message, True)
+
+                            # The admin wants to send a notification
+                            if splitted[0] == "/notify":
+                                splitted.pop(0)
+                                message = ""
+
+                                for split in splitted:
+                                    message = message + " " + split
+
+                                for user in user_list:
+                                    if user.is_enabled:
+                                        send_message(telegram_id, message, True)
 
                             # Update the message counter
                             message_counter = message_counter + 1
