@@ -857,7 +857,7 @@ async def telegram_bridge():
 
                                 for user in user_list:
                                     if user.is_enabled:
-                                        send_message(telegram_id, message, True)
+                                        send_message(user.telegram_id, message, True)
 
                             # Update the message counter
                             message_counter = message_counter + 1
