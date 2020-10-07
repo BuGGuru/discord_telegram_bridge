@@ -296,7 +296,7 @@ def get_online_status(active_channels, status, simple):
                 message = message + "\n" + user.name + "'s Status: " + user_day_status
 
     if not simple:
-        message = message + "\nMessage: /on_my_way  /later  /not_today  /notsurebutitry"
+        message = message + "\n/on_my_way  /later  /not_today  /notsurebutitry"
 
     return message
 
@@ -699,7 +699,7 @@ async def telegram_bridge():
                                                       "Messages on default will only be send workdays between 18 and 23 o'clock.\n" \
                                                       "You can change this with /toggle_workday_notifications\n" \
                                                       "Let the other know whats up today.\n" \
-                                                      "Message: /on_my_way  /later  /not_today  /notsurebutitry"
+                                                      "/on_my_way  /later  /not_today  /notsurebutitry"
                                             send_message(telegram_id, message, True)
                                             user_found = True
                                             break
@@ -717,7 +717,7 @@ async def telegram_bridge():
                                                       "Messages on default will only be send workdays between 18 and 23 o'clock.\n" \
                                                       "You can change this with /toggle_workday_notifications\n" \
                                                       "Let the other know whats up today.\n" \
-                                                      "Message: /on_my_way  /later  /not_today  /notsurebutitry"
+                                                      "/on_my_way  /later  /not_today  /notsurebutitry"
                                             send_message(telegram_id, message, True)
                                             user_found = True
                                             break
@@ -755,16 +755,16 @@ async def telegram_bridge():
                                             for user in user_list:
                                                 if not reply_person_username == user.name and user.is_enabled:
                                                     if splitted[0] == "/on_my_way":
-                                                        message = "Message from {}: On the Way!".format(reply_person_username)
+                                                        message = "{}: On the Way!".format(reply_person_username)
                                                         send_message(user.telegram_id, message, False)
                                                     if splitted[0] == "/later":
-                                                        message = "Message from {}: Will be there today!".format(reply_person_username)
+                                                        message = "{}: Will be there today!".format(reply_person_username)
                                                         send_message(user.telegram_id, message, False)
                                                     if splitted[0] == "/not_today":
-                                                        message = "Message from {}: Not today!".format(reply_person_username)
+                                                        message = "{}: Not today!".format(reply_person_username)
                                                         send_message(user.telegram_id, message, False)
                                                     if splitted[0].lower() == "/notsurebutitry":
-                                                        message = "Message from {}: Not sure but i try!".format(reply_person_username)
+                                                        message = "{}: Not sure but i try!".format(reply_person_username)
                                                         send_message(user.telegram_id, message, False)
                                             # Post status into the discord chat channel
                                             await chat_channel.send(message)
