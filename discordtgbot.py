@@ -209,6 +209,16 @@ def get_today_window_end(telegram_id_func):
         # Return False if not set
         return False
 
+# Check ignore_list for a user
+def ignore_list_check(telegram_id_func, user_to_check):
+    sqlquery = "select user_to_ignore from ignore_list where telegram_id = {}".format(telegram_id_func)
+    cursor.execute(sqlquery)
+    records = cursor.fetchall()
+    for record in records:
+        if user_to_check == record["user_to_ignore"]:
+            return True
+    return False
+
 ####################
 # Telegram methods #
 ####################
@@ -473,10 +483,15 @@ async def telegram_bridge():
                             diff = datetime.strptime(now, datetimeFormat) - datetime.strptime(user.last_online_time, datetimeFormat)
                         if not diff or diff.seconds > 60*15:
                             # Check who needs to get the message
-                            for user in user_list:
-                                if user.is_enabled and not user.is_online:
-                                    message = get_online_status(active_channels, True, False)
-                                    send_message(user.telegram_id, message, False)
+                            for user_to_notify in user_list:
+                                if user_to_notify.is_enabled and not user_to_notify.is_online:
+                                    # Check if user is on ignore list
+                                    if not ignore_list_check(user_to_notify.telegram_id, user.discord_user_id):
+                                        message = get_online_status(active_channels, True, False)
+                                        send_message(user_to_notify.telegram_id, message, False)
+                                    else:
+                                        log(2, "{} has {} on his ignore list.".format(user_to_notify.discord_username,
+                                                                                      user.discord_username))
                         else:
                             log(2, "{} just reconnected after {}".format(user.discord_username, diff))
 
@@ -858,6 +873,42 @@ async def telegram_bridge():
                                 for user in user_list:
                                     if user.is_enabled:
                                         send_message(user.telegram_id, message, True)
+
+                            # User wants to ignore someone
+                            if splitted[0] == "/ignore":
+                                # Check if a username was given
+                                try:
+                                    username_to_ignore = splitted[1]
+                                    if len(splitted) > 2:
+                                        # Rebuild the username
+                                        splitted.pop(0)
+                                        username_to_ignore = ""
+                                        for split in splitted:
+                                            if username_to_ignore:
+                                                username_to_ignore = username_to_ignore + " " + split
+                                            else:
+                                                username_to_ignore = split
+
+                                    # Try to find the user
+                                    for validate_user in user_list:
+                                        if validate_user.discord_username == username_to_ignore:
+                                            # Update Database
+                                            sqlquery = "INSERT INTO ignore_list (telegram_id, user_to_ignore) VALUES" \
+                                                       " ('{}', '{}')".format(telegram_id, validate_user.discord_user_id)
+                                            cursor.execute(sqlquery)
+                                            db.commit()
+
+                                            # Inform the user
+                                            message = "You will now ignore: {}".format(validate_user.discord_username)
+                                            send_message(telegram_id, message, True)
+                                            break
+
+                                # The user did not give a valid username to ignore
+                                except Exception as error:
+                                    log(5, "Exception: {}".format(error))
+
+                                    message = "Please use [ /ignore USERNAME ]"
+                                    send_message(telegram_id, message, True)
 
                             # Update the message counter
                             message_counter = message_counter + 1
