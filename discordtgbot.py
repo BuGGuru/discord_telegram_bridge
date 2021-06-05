@@ -277,8 +277,7 @@ def send_message(telegram_id, message_func, force):
 # Checks who is online right now
 # Also checks the day_status of the users
 # Returns a message with optional day status
-def get_online_status(active_channels, status, simple):
-
+def get_online_status(active_channels, status, simple, actions=False, reminder=False):
     # Check all channels for members
     members = []
     for channel in active_channels:
@@ -293,7 +292,8 @@ def get_online_status(active_channels, status, simple):
     # Construct Message
     if member_list:
         message = "Online: {}".format(member_list)
-
+    elif reminder:
+        message = "Daily reminder!"
     else:
         if simple:
             message = "Online: {}".format(member_list)
@@ -306,7 +306,7 @@ def get_online_status(active_channels, status, simple):
             if user_day_status:
                 message = message + "\n" + user.name + "'s Status: " + user_day_status
 
-    if not simple:
+    if not simple or actions:
         message = message + "\n/on_my_way  /later  /not_today  /notsurebutitry"
 
     return message
@@ -518,22 +518,22 @@ async def telegram_bridge():
                         log(2, "Will announce online members to prior suppressed users.")
                         # Message users
                         for user in user_list:
-                            # Check that the user is not online
-                            if user.is_enabled and not user.is_online:
-                                # User with suppress enabled getting notified
-                                if get_suppress_config(user.telegram_id):
-                                    message = get_online_status(active_channels, True, False)
-                                    if "Nobody is online, you are on your own!" not in message:
-                                        send_message(user.telegram_id, message, False)
-                                # User was not suppressed
-                                else:
-                                    log(2, "{} was not suppressed and does not need to be notified!".format(user.discord_username))
-                            # User is online
-                            else:
+                            # Check if the user is enabled
+                            if not user.is_enabled:
+                                break
+                            # Check if the user is online
+                            if user.is_online:
                                 log(2, "{} is online and does not need to be notified!".format(user.discord_username))
-                        intraday_announced = True
-                    else:
-                        intraday_announced = True
+                                break
+                            # User with suppress enabled getting notified
+                            if get_suppress_config(user.telegram_id):
+                                message = get_online_status(active_channels, True, True, actions=True, reminder=True)
+                                send_message(user.telegram_id, message, False)
+                            # User was not suppressed
+                            else:
+                                log(2, "{} was not suppressed and does not need to be notified!".format(
+                                    user.discord_username))
+                    intraday_announced = True
 
             # Update the variables for next loop
             if bot_restarted:
