@@ -934,7 +934,7 @@ async def telegram_bridge():
                                     send_message(telegram_id, message, True)
 
                             # The user wants to vote for a poll
-                            if "vote" in splitted[0]:
+                            if "/vote_" in splitted[0]:
                                 # Split message by "-" to be able to get the poll id
                                 vote_splitted = bot_messages_text_single.split('_')
                                 poll_id = vote_splitted[1]
