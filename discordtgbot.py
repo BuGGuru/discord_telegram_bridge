@@ -519,11 +519,11 @@ async def telegram_bridge():
                         for user in user_list:
                             # Check if the user is enabled
                             if not user.is_enabled:
-                                break
+                                continue
                             # Check if the user is online
                             if user.is_online:
                                 log(2, "{} is online and does not need to be notified!".format(user.discord_username))
-                                break
+                                continue
                             # User with suppress enabled getting notified
                             if get_suppress_config(user.telegram_id):
                                 message = get_online_status(active_channels, True, True, actions=True, reminder=True)
