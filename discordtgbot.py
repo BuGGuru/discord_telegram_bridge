@@ -513,24 +513,24 @@ async def telegram_bridge():
             if not intraday_announced:
                 if checktime("hour") == 18:
                     if not bot_restarted:
-                            # Log Action
-                            log(2, "Will announce online members to prior suppressed users.")
-                            # Message users
-                            for user in user_list:
-                                # Check that the user is not online
-                                if user.is_enabled and not user.is_online:
-                                    # User with suppress enabled getting notified
-                                    if get_suppress_config(user.telegram_id):
-                                        message = get_online_status(active_channels, True, False)
-                                        if "Nobody is online, you are on your own!" not in message:
-                                            send_message(user.telegram_id, message, False)
-                                    # User was not suppressed
-                                    else:
-                                        log(2, "{} was not suppressed and does not need to be notified!".format(user.discord_username))
-                                # User is online
+                        # Log Action
+                        log(2, "Will announce online members to prior suppressed users.")
+                        # Message users
+                        for user in user_list:
+                            # Check that the user is not online
+                            if user.is_enabled and not user.is_online:
+                                # User with suppress enabled getting notified
+                                if get_suppress_config(user.telegram_id):
+                                    message = get_online_status(active_channels, True, False)
+                                    if "Nobody is online, you are on your own!" not in message:
+                                        send_message(user.telegram_id, message, False)
+                                # User was not suppressed
                                 else:
-                                    log(2, "{} is online and does not need to be notified!".format(user.discord_username))
-                            intraday_announced = True
+                                    log(2, "{} was not suppressed and does not need to be notified!".format(user.discord_username))
+                            # User is online
+                            else:
+                                log(2, "{} is online and does not need to be notified!".format(user.discord_username))
+                        intraday_announced = True
                     else:
                         intraday_announced = True
 
@@ -626,7 +626,7 @@ async def telegram_bridge():
                             # The user wants to toggle workday notifications
                             if splitted[0] == "/toggle_workday_notifications":
                                 # Toggle setting
-                                if get_suppress_status(telegram_id):
+                                if get_suppress_config(telegram_id):
                                     message = "You will get notification all day long!"
                                     # Update Database
                                     sqlquery = "UPDATE users SET suppress = '0' WHERE telegram_id = " + str(telegram_id)
