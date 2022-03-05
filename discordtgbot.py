@@ -338,13 +338,14 @@ def log(verbosity, output):
             print(str(output))
             last_log = time.time()
 
-    try:
-        # Write into Database
-        sqlquery = "INSERT INTO messages (message_text, verbosity) VALUES (\"{}\", \"{}\")".format(output, verbosity)
-        cursor.execute(sqlquery)
-        db.commit()
-    except Exception as error:
-        print("Error logging to Database")
+    if verbosity < 9:
+        try:
+            # Write into Database
+            sqlquery = "INSERT INTO messages (message_text, verbosity) VALUES (\"{}\", \"{}\")".format(output, verbosity)
+            cursor.execute(sqlquery)
+            db.commit()
+        except Exception as error:
+            print("Error logging to Database")
 
 # Looks up the current Day or Hour
 # Hours: 0-23 or Days: 0-7 (Monday-Sunday)
