@@ -6,6 +6,7 @@ import time
 from datetime import datetime, date
 import configparser
 import discordstats
+from poll import *
 
 ###########
 # Configs #
@@ -20,7 +21,9 @@ dbuser = config.get("Database", "dbuser")
 dbpass = config.get("Database", "dbpass")
 
 # Variables to work with
-client = discord.Client()
+intents = discord.Intents.default()
+intents.members = True
+client = discord.Client(intents=intents)
 bot_restarted = True
 offset = "-0"
 logs = []
@@ -129,7 +132,7 @@ def get_suppress_status(telegram_id_func):
         else:
             # User does not want to suppress or its in the notification time
             return False
-    except:
+    except Exception as error:
         # If it is not set we assume it should be suppressed
         return True
 
@@ -205,7 +208,7 @@ def get_today_window_end(telegram_id_func):
         records = cursor.fetchone()
         # Return the day_status
         return int(records["end"])
-    except:
+    except Exception as error:
         # Return False if not set
         return False
 
@@ -424,6 +427,7 @@ async def telegram_bridge():
             members = []
             for channel in active_channels:
                 voice_channel = client.get_channel(channel)
+                log(9, "Checking channel: " + str(voice_channel))
                 members = members + voice_channel.members
 
             # Check if all connected user are known
@@ -742,8 +746,8 @@ async def telegram_bridge():
 
                                     # User was not found
                                     if not user_found:
-                                            message = "I could not find you. Please check your input or ask the admin."
-                                            send_message(telegram_id, message, True)
+                                        message = "I could not find you. Please check your input or ask the admin."
+                                        send_message(telegram_id, message, True)
 
                                 except IndexError:
                                     message = "Please use [ /pair_discord YOUR-DISCORD-USERNAME ]\n" \
@@ -909,6 +913,47 @@ async def telegram_bridge():
 
                                     message = "Please use [ /ignore USERNAME ]"
                                     send_message(telegram_id, message, True)
+
+                            # The user wants to create a poll
+                            if splitted[0] == "/create_poll":
+                                try:
+                                    poll_question = splitted[1]
+                                    splitted.pop(0)
+                                    poll_question = ""
+                                    for split in splitted:
+                                        poll_question = poll_question + " " + split
+
+                                    new_poll = Poll(telegram_id, poll_question[1:])
+                                    message = f'Poll from {get_username(telegram_id)}\n{poll_question[1:]}\n/vote_{new_poll.id}_yes or /vote_{new_poll.id}_no'
+                                    for user in user_list:
+                                        if user.is_enabled:
+                                            send_message(user.telegram_id, message, True)
+
+                                # The user did not give a valid question
+                                except Exception as error:
+                                    log(5, "Exception: {}".format(error))
+
+                                    message = "Please use [ /create_poll QUESTION ]"
+                                    send_message(telegram_id, message, True)
+
+                            # The user wants to vote for a poll
+                            if "/vote_" in splitted[0]:
+                                # Split message by "-" to be able to get the poll id
+                                vote_splitted = bot_messages_text_single.split('_')
+                                poll_id = vote_splitted[1]
+                                vote = vote_splitted[2]
+
+                                for poll in open_polls:
+                                    if int(poll.id) == int(poll_id):
+                                        if vote == "yes":
+                                            poll.vote(telegram_id, "yes")
+                                        else:
+                                            poll.vote(telegram_id, "no")
+
+                                        for user in user_list:
+                                            if user.is_enabled:
+                                                message = f'{get_username(telegram_id)} voted {vote}\nPoll: {poll.question}\nYes: {poll.votes_yes} -vs- No: {poll.votes_no}'
+                                                send_message(user.telegram_id, message, True)
 
                             # Update the message counter
                             message_counter = message_counter + 1
