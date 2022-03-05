@@ -228,6 +228,7 @@ def ignore_list_check(telegram_id_func, user_to_check):
 
 # Get updates from bot
 def get_messages(offset_func):
+    log(9, "Telegram: Checking for new messages")
     try:
         offset_url = "https://api.telegram.org/bot" + str(tgbot_token) + "/getUpdates?offset=" + offset_func
         bot_messages = requests.get(offset_url)
@@ -237,7 +238,7 @@ def get_messages(offset_func):
 
 # Send message to a chat
 def send_message(telegram_id, message_func, force):
-
+    log(9, "Telegram: Sending Message")
     # If user is online, force message
     for user in user_list:
         if telegram_id == user.telegram_id:
@@ -455,6 +456,7 @@ async def telegram_bridge():
 
             # Update user online status
             # This only happens as the user connects to the channel
+            log(9, "Checking users: start")
             for user in user_list:
                 if not user.is_online and is_user_in_channel_by_discord_id(user.discord_user_id, members):
                     # User just connected to the voice channel
@@ -512,6 +514,7 @@ async def telegram_bridge():
                     log(2, "{} is now offline".format(user.name))
                     # Verbose for cli
                     log(2, get_online_status(active_channels, True, True))
+            log(9, "Checking users: finished")
 
             # Announce if someone is online and it turns 18 o'clock
             # Announce only to user that suppressed the messages before
@@ -967,6 +970,7 @@ async def telegram_bridge():
                 offset = str(bot_messages_json["result"][message_amount - 1]["update_id"] + 1)
 
             # Sleep some seconds
+            log(9, "Sleeping starts")
             await asyncio.sleep(5)
 
         # Catch errors and log them to database
