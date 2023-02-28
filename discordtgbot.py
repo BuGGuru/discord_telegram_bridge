@@ -488,7 +488,7 @@ async def telegram_bridge():
                         if user.last_online_time:
                             now = datetime.now().strftime(datetimeFormat)
                             diff = datetime.strptime(now, datetimeFormat) - datetime.strptime(user.last_online_time, datetimeFormat)
-                        if not diff or diff.seconds > 60*15:
+                        if not diff or diff.total_seconds() > 60*15:
                             # Check who needs to get the message
                             for user_to_notify in user_list:
                                 if user_to_notify.is_enabled and not user_to_notify.is_online:
