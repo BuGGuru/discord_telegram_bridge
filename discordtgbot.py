@@ -110,6 +110,15 @@ def get_username(telegram_id):
     else:
         return telegram_id
 
+# Converts a given Discord-Username to the username
+# Returns the Username
+def get_username_discord(username_discord):
+    for user in user_list:
+        if user.discord_username == username_discord:
+            return user.name
+    else:
+        return username_discord
+
 # Returns the the force_message setting for a given user
 def get_setting_force_messages(telegram_id):
     for user in user_list:
@@ -290,7 +299,8 @@ def get_online_status(active_channels, status, simple, actions=False, reminder=F
     # Create member list
     member_list = []
     for member in members:
-        member_list.append(member.name)
+        username_list = get_username_discord(member.name)
+        member_list.append(username_list)
 
     # Construct Message
     if member_list:
